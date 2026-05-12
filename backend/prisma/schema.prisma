@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  EDITOR
+  ADMIN
+}
+
+enum MembershipPlan {
+  FREE
+  CREATOR_PLUS
+  ELITE_CREATOR
+}
+
+enum EditorLevel {
+  BEGINNER
+  RISING_CREATOR
+  PRO
+  ELITE
+  MASTER
+  VERIFIED_PREMIUM
+}
+
+enum SubscriptionPlan {
+  FREE
+  PRO
+  ELITE
+}
+
+enum OrderStatus {
+  SEARCHING
+  ACCEPTED
+  EDITING_STARTED
+  TRANSITIONS_ADDING
+  COLOR_GRADING
+  RENDERING
+  EXPORTING
+  UPLOADING
+  COMPLETED
+}
+
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  phone         String    @unique
+  name          String?
+  email         String?   @unique
+  password      String?
+  avatar        String?
+  role          UserRole  @default(CUSTOMER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Customer Ecosystem
+  creatorType   String?   // "Gamer", "Influencer", etc.
+  plan          MembershipPlan @default(FREE)
+  walletBalance Float     @default(0)
+  referralCode  String?   @unique
+  rewardPoints  Int       @default(0)
+  
+  // Relations
+  customerOrders Order[]  @relation("CustomerOrders")
+  favoriteEditorIds String[] @db.ObjectId
+  favoriteEditors Editor[] @relation("FavoriteEditors", fields: [favoriteEditorIds], references: [id])
+  editorProfile  Editor?
+}
+
+model Order {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  customerId    String      @db.ObjectId
+  customer      User        @relation("CustomerOrders", fields: [customerId], references: [id])
+  editorId      String?     @db.ObjectId
+  editor        Editor?     @relation("EditorOrders", fields: [editorId], references: [id])
+  
+  title         String
+  category      String
+  status        OrderStatus @default(SEARCHING)
+  price         Float
+  progress      Int         @default(0) // 0-100%
+  
+  videoUrl      String?
+  finalUrl      String?     // HD Download link
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Editor {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String        @unique @db.ObjectId
+  user            User          @relation(fields: [userId], references: [id])
+  
+  bio             String?
+  skills          String[]      
+  level           EditorLevel   @default(BEGINNER)
+  badges          String[]      
+  plan            SubscriptionPlan @default(FREE)
+  
+  // Stats
+  rating          Float         @default(0)
+  totalOrders     Int           @default(0)
+  responseSpeed   String?       
+  successRate     Float         @default(100)
+  
+  // Links
+  instagramUrl    String?
+  youtubeUrl      String?
+  portfolio       PortfolioItem[]
+  
+  // Earnings
+  balance         Float         @default(0)
+  totalEarnings   Float         @default(0)
+  
+  isOnline        Boolean       @default(false)
+  favoritedByIds  String[]      @db.ObjectId
+  favoritedBy     User[]        @relation("FavoriteEditors", fields: [favoritedByIds], references: [id])
+  orders          Order[]       @relation("EditorOrders")
+}
+
+model PortfolioItem {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  editorId    String   @db.ObjectId
+  editor      Editor   @relation(fields: [editorId], references: [id])
+  title       String
+  thumbnail   String
+  videoUrl    String
+  beforeUrl   String?  
+  category    String   
+  likes       Int      @default(0)
+}
