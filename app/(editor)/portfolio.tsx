@@ -1,48 +1,74 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView } from 'react-native';
-import { Plus, Play, Trash2, Edit3, Image as ImageIcon, Eye } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, ActivityIndicator } from 'react-native';
+import { Plus, Play, Trash2, Edit3, Image as ImageIcon, Eye, AlertCircle } from 'lucide-react-native';
 import { GlassCard } from '../../src/components/ui/GlassCard';
 import { LinearGradient } from 'expo-linear-gradient';
-
-const PORTFOLIO_ITEMS = [
-  { id: '1', title: 'Cinematic Wedding Highlight', category: 'Wedding', likes: 124, views: '2.4k' },
-  { id: '2', title: 'Gaming Montage - Valorant', category: 'Gaming', likes: 450, views: '8.1k' },
-  { id: '3', title: 'AI Face Swap Demo', category: 'AI Video', likes: 89, views: '1.2k' },
-];
+import { authService } from '../../src/services/api';
 
 export default function PortfolioScreen() {
+  const [portfolio, setPortfolio] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchPortfolio();
+  }, []);
+
+  const fetchPortfolio = async () => {
+    try {
+      setLoading(true);
+      const user = await authService.getMe();
+      setPortfolio(user.editorProfile?.portfolio || []);
+    } catch (error) {
+      console.error('[Portfolio] Fetch Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Your Portfolio</Text>
-          <Text style={styles.subtitle}>Showcase your best work to clients</Text>
+          <Text style={styles.title}>Showcase</Text>
+          <Text style={styles.subtitle}>Your best work on display</Text>
         </View>
         <TouchableOpacity style={styles.addBtn}>
           <Plus size={24} color="#FFF" />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.categoryFilter}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {['All', 'Reels', 'Gaming', 'Wedding', 'Cinematic', 'VFX', 'AI'].map((cat, i) => (
-            <TouchableOpacity key={cat} style={[styles.filterChip, i === 0 && styles.activeChip]}>
-              <Text style={[styles.filterText, i === 0 && styles.activeFilterText]}>{cat}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
       <FlatList
-        data={PORTFOLIO_ITEMS}
+        data={portfolio}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <AlertCircle size={48} color="#CBD5E1" />
+            <Text style={styles.emptyTitle}>Empty Portfolio</Text>
+            <Text style={styles.emptySubtitle}>Add your first video to start attracting high-paying clients.</Text>
+            <TouchableOpacity style={styles.addInitialBtn}>
+              <Text style={styles.addInitialText}>Upload Now</Text>
+            </TouchableOpacity>
+          </View>
+        }
         renderItem={({ item }) => (
           <GlassCard style={styles.card}>
             <View style={styles.imagePlaceholder}>
-              <LinearGradient colors={['#F1F5F9', '#E2E8F0']} style={StyleSheet.absoluteFill} />
+              {item.thumbnailUrl ? (
+                <Image source={{ uri: item.thumbnailUrl }} style={StyleSheet.absoluteFill} />
+              ) : (
+                <LinearGradient colors={['#F5F3FF', '#EDE9FE']} style={StyleSheet.absoluteFill} />
+              )}
               <View style={styles.playIcon}><Play size={20} color="#FFF" fill="#FFF" /></View>
-              <View style={styles.badge}><Text style={styles.badgeText}>{item.category}</Text></View>
+              <View style={styles.badge}><Text style={styles.badgeText}>{item.category || 'Reel'}</Text></View>
             </View>
             
             <View style={styles.cardInfo}>
@@ -50,10 +76,10 @@ export default function PortfolioScreen() {
               <View style={styles.statsRow}>
                 <View style={styles.stat}>
                   <Eye size={14} color="#94A3B8" />
-                  <Text style={styles.statText}>{item.views}</Text>
+                  <Text style={styles.statText}>{item.views || 0}</Text>
                 </View>
                 <View style={styles.stat}>
-                  <Text style={styles.statText}>❤️ {item.likes}</Text>
+                  <Text style={styles.statText}>❤️ {item.likes || 0}</Text>
                 </View>
               </View>
             </View>
@@ -71,15 +97,11 @@ export default function PortfolioScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { paddingTop: 80, paddingHorizontal: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   title: { fontSize: 28, fontWeight: '800', color: '#1E293B' },
   subtitle: { fontSize: 14, color: '#64748B', marginTop: 4 },
   addBtn: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#8B5CF6', alignItems: 'center', justifyContent: 'center', shadowColor: '#8B5CF6', shadowOpacity: 0.3, shadowRadius: 10, elevation: 5 },
-  categoryFilter: { paddingLeft: 24, marginBottom: 24 },
-  filterChip: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, backgroundColor: '#FFF', marginRight: 12, borderWidth: 1, borderColor: '#F1F5F9' },
-  activeChip: { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' },
-  filterText: { fontSize: 14, fontWeight: '600', color: '#64748B' },
-  activeFilterText: { color: '#FFF' },
   list: { paddingHorizontal: 24, paddingBottom: 100 },
   card: { padding: 0, marginBottom: 20, overflow: 'hidden', backgroundColor: '#FFF' },
   imagePlaceholder: { height: 180, width: '100%', position: 'relative' },
@@ -92,5 +114,10 @@ const styles = StyleSheet.create({
   stat: { flexDirection: 'row', alignItems: 'center', marginRight: 16 },
   statText: { fontSize: 12, color: '#94A3B8', marginLeft: 4 },
   cardActions: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#F1F5F9', padding: 8, justifyContent: 'flex-end' },
-  actionBtn: { padding: 8, marginLeft: 8 }
+  actionBtn: { padding: 8, marginLeft: 8 },
+  emptyContainer: { alignItems: 'center', padding: 100, justifyContent: 'center' },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: '#1E293B', marginTop: 16 },
+  emptySubtitle: { fontSize: 14, color: '#64748B', textAlign: 'center', marginTop: 8, lineHeight: 20 },
+  addInitialBtn: { marginTop: 24, backgroundColor: '#F5F3FF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 },
+  addInitialText: { color: '#8B5CF6', fontWeight: '800' }
 });

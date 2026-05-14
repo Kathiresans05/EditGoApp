@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Dimensions } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Dimensions, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { 
   Zap, TrendingUp, Star, Award, 
@@ -11,12 +11,58 @@ import {
 import { GlassCard } from '../../src/components/ui/GlassCard';
 import Animated, { FadeInUp, FadeInRight } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
+import { authService, orderService } from '../../src/services/api';
 
 const { width } = Dimensions.get('window');
 
 export default function EditorDashboard() {
-  const [isOnline, setIsOnline] = useState(true);
   const router = useRouter();
+  const [isOnline, setIsOnline] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [activeJobs, setActiveJobs] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [profile, ordersData] = await Promise.all([
+        authService.getMe(),
+        orderService.getMyOrders()
+      ]);
+      
+      setUser(profile);
+      setIsOnline(profile.editorProfile?.isOnline || false);
+      
+      const allOrders = ordersData.orders || [];
+      setActiveJobs(allOrders.filter((o: any) => o.status !== 'SEARCHING' && o.status !== 'COMPLETED'));
+      setRequests(allOrders.filter((o: any) => o.status === 'SEARCHING'));
+      
+    } catch (error) {
+      console.error('[EditorDashboard] Data Fetch Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleOnline = async (value: boolean) => {
+    setIsOnline(value);
+    // TODO: Connect to real API to update online status
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+      </View>
+    );
+  }
+
+  const editor = user?.editorProfile;
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -25,7 +71,7 @@ export default function EditorDashboard() {
         <View style={styles.headerTop}>
           <View>
             <Text style={styles.welcome}>Editor Portal</Text>
-            <Text style={styles.subWelcome}>Ready for new projects</Text>
+            <Text style={styles.subWelcome}>Hello, {user?.name || 'Pro Editor'}</Text>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity 
@@ -37,7 +83,7 @@ export default function EditorDashboard() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.bellBtn}>
               <Bell size={20} color="#FFF" />
-              <View style={styles.dot} />
+              {requests.length > 0 && <View style={styles.dot} />}
             </TouchableOpacity>
           </View>
         </View>
@@ -45,13 +91,13 @@ export default function EditorDashboard() {
         <View style={styles.headerBottom}>
           <View style={styles.levelBadge}>
             <Award size={14} color="#FFD700" fill="#FFD700" />
-            <Text style={styles.levelText}>PRO EDITOR • RANK #42</Text>
+            <Text style={styles.levelText}>{editor?.level || 'BEGINNER'} EDITOR</Text>
           </View>
           <View style={styles.onlineToggle}>
-            <Text style={styles.onlineStatusText}>ONLINE</Text>
+            <Text style={styles.onlineStatusText}>{isOnline ? 'ONLINE' : 'OFFLINE'}</Text>
             <Switch 
               value={isOnline} 
-              onValueChange={setIsOnline} 
+              onValueChange={toggleOnline} 
               trackColor={{ false: '#FFFFFF40', true: '#10B981' }}
               thumbColor="#FFF"
             />
@@ -61,11 +107,11 @@ export default function EditorDashboard() {
         {/* Progress Bar */}
         <View style={styles.progressContainer}>
           <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>Progress to Elite Editor</Text>
-            <Text style={styles.progressPercent}>75%</Text>
+            <Text style={styles.progressTitle}>Progress to Next Level</Text>
+            <Text style={styles.progressPercent}>{editor?.totalOrders % 10 * 10}%</Text>
           </View>
           <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: '75%' }]} />
+            <View style={[styles.progressBarFill, { width: `${(editor?.totalOrders % 10 * 10) || 10}%` }]} />
           </View>
         </View>
       </LinearGradient>
@@ -75,11 +121,11 @@ export default function EditorDashboard() {
         <View style={styles.statsGrid}>
           <Animated.View entering={FadeInUp.delay(200)} style={styles.statBox}>
             <GlassCard style={styles.statCard}>
-              <Text style={styles.statLabel}>Earnings (Today)</Text>
-              <Text style={styles.statValue}>₹4,250</Text>
+              <Text style={styles.statLabel}>Total Earnings</Text>
+              <Text style={styles.statValue}>₹{editor?.totalEarnings?.toLocaleString() || '0'}</Text>
               <View style={styles.trendContainer}>
                 <ArrowUpRight size={12} color="#10B981" />
-                <Text style={styles.trendGreen}>+12% vs yest.</Text>
+                <Text style={styles.trendGreen}>Live from wallet</Text>
               </View>
             </GlassCard>
           </Animated.View>
@@ -87,61 +133,76 @@ export default function EditorDashboard() {
           <Animated.View entering={FadeInUp.delay(300)} style={styles.statBox}>
             <GlassCard style={styles.statCard}>
               <Text style={styles.statLabel}>Success Rate</Text>
-              <Text style={styles.statValue}>98.5%</Text>
+              <Text style={styles.statValue}>{editor?.successRate || '100'}%</Text>
               <View style={styles.trendContainer}>
                 <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                <Text style={styles.trendText}>Top 1% Editor</Text>
+                <Text style={styles.trendText}>{editor?.rating?.toFixed(1) || '0.0'} Rating</Text>
               </View>
             </GlassCard>
           </Animated.View>
         </View>
 
-        {/* 3. New Requests Section (From old design) */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>New Requests</Text>
-          <View style={styles.onlineIndicator}>
-            <View style={styles.greenDot} />
-            <Text style={styles.onlineLabel}>ONLINE</Text>
-          </View>
-        </View>
-        <Animated.View entering={FadeInUp.delay(400)}>
-          <GlassCard style={styles.requestCard}>
-            <View style={styles.requestInfo}>
-              <Text style={styles.requestTitle}>Cinematic Wedding Teaser</Text>
-              <Text style={styles.requestSubtitle}>Budget: ₹2,500 • Deadline: 24h</Text>
+        {/* 3. New Requests Section */}
+        {requests.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>New Requests ({requests.length})</Text>
+              <View style={styles.onlineIndicator}>
+                <View style={styles.greenDot} />
+                <Text style={styles.onlineLabel}>ACTIVE</Text>
+              </View>
             </View>
-            <TouchableOpacity style={styles.acceptBtn}>
-              <Text style={styles.acceptText}>Accept</Text>
-            </TouchableOpacity>
-          </GlassCard>
-        </Animated.View>
+            {requests.map((req, idx) => (
+              <Animated.View entering={FadeInUp.delay(400 + idx * 100)} key={req.id} style={{ marginBottom: 12 }}>
+                <GlassCard style={styles.requestCard}>
+                  <View style={styles.requestInfo}>
+                    <Text style={styles.requestTitle}>{req.title}</Text>
+                    <Text style={styles.requestSubtitle}>Budget: ₹{req.price} • {req.category}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.acceptBtn} onPress={() => router.push('/(editor)/requests')}>
+                    <Text style={styles.acceptText}>View</Text>
+                  </TouchableOpacity>
+                </GlassCard>
+              </Animated.View>
+            ))}
+          </>
+        )}
 
         {/* 4. Active Job Card */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>In Progress</Text>
+          <Text style={styles.sectionTitle}>In Progress ({activeJobs.length})</Text>
         </View>
-        <Animated.View entering={FadeInUp.delay(500)}>
-          <View style={styles.activeJobCard}>
-            <View style={styles.jobHeader}>
-              <Clock size={20} color="#EF4444" />
-              <Text style={styles.jobHeaderText}>ACTIVE JOB • 00:24:12 LEFT</Text>
+        {activeJobs.length > 0 ? activeJobs.map((job, idx) => (
+          <Animated.View entering={FadeInUp.delay(500 + idx * 100)} key={job.id} style={{ marginBottom: 12 }}>
+            <View style={styles.activeJobCard}>
+              <View style={styles.jobHeader}>
+                <Clock size={20} color="#EF4444" />
+                <Text style={styles.jobHeaderText}>{job.status} • {job.progress}% DONE</Text>
+              </View>
+              <Text style={styles.jobTitle}>{job.title} for {job.customer?.name || 'Client'}</Text>
+              <TouchableOpacity style={styles.workspaceBtn} onPress={() => router.push('/(editor)/requests')}>
+                <Text style={styles.workspaceBtnText}>Update Progress</Text>
+                <ChevronRight size={18} color="#FFF" />
+              </TouchableOpacity>
             </View>
-            <Text style={styles.jobTitle}>Project: Cinematic Wedding Reel for @sarah_vlogs</Text>
-            <TouchableOpacity style={styles.workspaceBtn}>
-              <Text style={styles.workspaceBtnText}>Go to Workspace</Text>
-              <ChevronRight size={18} color="#FFF" />
-            </TouchableOpacity>
+          </Animated.View>
+        )) : (
+          <View style={styles.emptyContainer}>
+            <AlertCircle size={32} color="#CBD5E1" />
+            <Text style={styles.emptyText}>No active jobs at the moment</Text>
           </View>
-        </Animated.View>
+        )}
 
         {/* 5. Performance Analytics */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Performance Analytics</Text>
-          <TouchableOpacity><Text style={styles.detailsText}>Details</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/(editor)/earnings')}>
+            <Text style={styles.detailsText}>Details</Text>
+          </TouchableOpacity>
         </View>
         <GlassCard style={styles.analyticsCard}>
           <BarChart3 size={32} color="#CBD5E1" />
-          <Text style={styles.loadingText}>Earnings Graph loading...</Text>
+          <Text style={styles.loadingText}>Orders History: {editor?.totalOrders || 0} Projects</Text>
         </GlassCard>
 
         <View style={{ height: 100 }} />
@@ -150,18 +211,12 @@ export default function EditorDashboard() {
   );
 }
 
-function BenefitCard({ icon, title, desc }: any) {
-  return (
-    <GlassCard style={styles.benefitCard}>
-      <View style={styles.benefitIconBox}>{icon}</View>
-      <Text style={styles.benefitTitle}>{title}</Text>
-      <Text style={styles.benefitDesc}>{desc}</Text>
-    </GlassCard>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 40, backgroundColor: '#FFF', borderRadius: 24, borderStyle: 'dashed', borderWidth: 2, borderColor: '#E2E8F0' },
+  emptyText: { marginTop: 12, color: '#94A3B8', fontWeight: '600' },
+  
   header: { paddingTop: 60, paddingBottom: 30, paddingHorizontal: 24, borderBottomLeftRadius: 40, borderBottomRightRadius: 40 },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   welcome: { fontSize: 28, fontWeight: '900', color: '#FFF' },
@@ -202,17 +257,13 @@ const styles = StyleSheet.create({
   requestSubtitle: { fontSize: 12, color: '#64748B', marginTop: 4 },
   acceptBtn: { backgroundColor: '#8B5CF6', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 },
   acceptText: { color: '#FFF', fontWeight: '800', fontSize: 13 },
-  activeJobCard: { backgroundColor: '#FFF5F5', padding: 20, borderRadius: 24, borderWidth: 1, borderColor: '#FEE2E2' },
+  activeJobCard: { backgroundColor: '#F5F3FF', padding: 20, borderRadius: 24, borderWidth: 1, borderColor: '#DDD6FE' },
   jobHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  jobHeaderText: { fontSize: 11, fontWeight: '900', color: '#EF4444', marginLeft: 8 },
+  jobHeaderText: { fontSize: 11, fontWeight: '900', color: '#8B5CF6', marginLeft: 8 },
   jobTitle: { fontSize: 15, fontWeight: '700', color: '#1E293B', marginBottom: 16, lineHeight: 22 },
-  workspaceBtn: { backgroundColor: '#EF4444', paddingVertical: 12, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  workspaceBtn: { backgroundColor: '#8B5CF6', paddingVertical: 12, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   workspaceBtnText: { color: '#FFF', fontWeight: '800', fontSize: 14, marginRight: 8 },
   detailsText: { fontSize: 13, color: '#6366F1', fontWeight: '700' },
-  analyticsCard: { height: 180, backgroundColor: '#FFF', borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 30 },
-  loadingText: { fontSize: 13, color: '#94A3B8', marginTop: 12, fontWeight: '600' },
-  benefitCard: { width: 180, padding: 16, backgroundColor: '#FFF', marginRight: 16, borderRadius: 24 },
-  benefitIconBox: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  benefitTitle: { fontSize: 15, fontWeight: '700', color: '#1E293B' },
-  benefitDesc: { fontSize: 12, color: '#64748B', marginTop: 4, lineHeight: 18 }
+  analyticsCard: { height: 120, backgroundColor: '#FFF', borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 30 },
+  loadingText: { fontSize: 13, color: '#94A3B8', marginTop: 12, fontWeight: '600' }
 });

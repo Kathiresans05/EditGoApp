@@ -6,6 +6,8 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { setupSockets } from './sockets';
 
+import path from 'path';
+
 dotenv.config();
 
 const app = express();
@@ -21,6 +23,7 @@ app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Error Logging Middleware
 app.use((err: any, req: any, res: any, next: any) => {
@@ -40,13 +43,17 @@ app.get('/', (req, res) => {
 // Import and use routes
 import authRoutes from './routes/auth.routes';
 import orderRoutes from './routes/order.routes';
+import adminRoutes from './routes/admin.routes';
+import customerRoutes from './routes/customer.routes';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/customer', customerRoutes);
 
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8000;
 
-server.listen(PORT, () => {
+server.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
 });

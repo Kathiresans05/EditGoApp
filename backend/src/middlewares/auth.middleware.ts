@@ -35,3 +35,17 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
     return res.status(401).json({ message: 'Invalid token' });
   }
 };
+
+export const adminMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ message: 'Access denied. Admins only.' });
+  }
+  next();
+};
+
+export const editorMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (req.user?.role !== 'EDITOR' && req.user?.role !== 'ADMIN') {
+    return res.status(403).json({ message: 'Access denied. Editors only.' });
+  }
+  next();
+};

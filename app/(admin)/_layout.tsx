@@ -10,21 +10,7 @@ export default function AdminTabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          position: 'absolute',
-          bottom: 20,
-          left: 20,
-          right: 20,
-          height: 70,
-          borderRadius: 25,
-          backgroundColor: 'rgba(255, 255, 255, 0.9)',
-          borderTopWidth: 0,
-          elevation: 10,
-          shadowColor: '#6366F1',
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.1,
-          shadowRadius: 20,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 12,
-          paddingTop: 12,
+          display: 'none',
         },
         tabBarActiveTintColor: '#6366F1',
         tabBarInactiveTintColor: '#94A3B8',
@@ -71,6 +57,21 @@ export default function AdminTabsLayout() {
           tabBarIcon: ({ color, size }) => <Settings size={22} color={color} />,
         }}
       />
+      
+      {/* Hide Extra Enterprise Screens from Tab Bar */}
+      <Tabs.Screen name="live-activity" options={{ href: null }} />
+      <Tabs.Screen name="revenue-reports" options={{ href: null }} />
+      <Tabs.Screen name="withdrawals" options={{ href: null }} />
+      <Tabs.Screen name="ai-insights" options={{ href: null }} />
+      <Tabs.Screen name="security" options={{ href: null }} />
+      <Tabs.Screen name="analytics" options={{ href: null }} />
+      <Tabs.Screen name="complaints" options={{ href: null }} />
+      <Tabs.Screen name="promotions" options={{ href: null }} />
+      <Tabs.Screen name="reviews" options={{ href: null }} />
+      <Tabs.Screen name="templates" options={{ href: null }} />
+      <Tabs.Screen name="subscriptions" options={{ href: null }} />
+      <Tabs.Screen name="payments" options={{ href: null }} />
+      <Tabs.Screen name="pricing" options={{ href: null }} />
     </Tabs>
   );
 }

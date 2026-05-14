@@ -8,21 +8,51 @@ import Animated, { FadeInUp, FadeInRight } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 
-const CATEGORIES = [
-  { id: '1', title: 'Insta Reels', icon: '📱', price: '79', trend: true },
-  { id: '2', title: 'YT Shorts', icon: '🎥', price: '149' },
-  { id: '3', title: 'Cinematic', icon: '🎬', price: '299', trend: true },
-  { id: '4', title: 'Thumbnails', icon: '🖼️', price: '79' },
-  { id: '5', title: 'AI Style', icon: '🤖', price: '199' },
-  { id: '6', title: 'Slow Motion', icon: '❄️', price: '129' },
-];
+import { customerService } from '../../src/services/api';
+import { RefreshControl, ActivityIndicator } from 'react-native';
 
 export default function CustomerHome() {
   const router = useRouter();
+  const [data, setData] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  const fetchHomeData = async () => {
+    try {
+      const homeData = await customerService.getHomeData();
+      setData(homeData);
+    } catch (error) {
+      console.error('Error fetching customer home data:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchHomeData();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchHomeData();
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#6366F1" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
         
         {/* 1. Premium Header with Gradient Background */}
         <LinearGradient 
@@ -41,8 +71,8 @@ export default function CustomerHome() {
                 />
               </View>
               <View>
-                <Text style={styles.greeting}>Hey, Arjun! ✨</Text>
-                <Text style={styles.subGreeting}>Level: Pro Creator</Text>
+                <Text style={styles.greeting}>Hey, {data?.user?.name || 'Creator'}! ✨</Text>
+                <Text style={styles.subGreeting}>Level: {data?.user?.level || 'Beginner'}</Text>
               </View>
             </View>
             <TouchableOpacity style={styles.iconButtonHeader}>
@@ -66,22 +96,24 @@ export default function CustomerHome() {
         </View>
 
         {/* 3. Active Order (Floating Action) */}
-        <Animated.View entering={FadeInUp.delay(100)} style={styles.activeOrderContainer}>
-          <TouchableOpacity onPress={() => router.push('/(customer)/tracking')}>
-            <LinearGradient colors={['#8B5CF6', '#3B82F6']} start={{x:0, y:0}} end={{x:1, y:0}} style={styles.activeOrderCard}>
-              <View style={styles.orderLeft}>
-                <View style={styles.pulseContainer}>
-                  <Zap size={18} color="#8B5CF6" fill="#8B5CF6" />
+        {data?.activeOrder && (
+          <Animated.View entering={FadeInUp.delay(100)} style={styles.activeOrderContainer}>
+            <TouchableOpacity onPress={() => router.push('/(customer)/tracking')}>
+              <LinearGradient colors={['#8B5CF6', '#3B82F6']} start={{x:0, y:0}} end={{x:1, y:0}} style={styles.activeOrderCard}>
+                <View style={styles.orderLeft}>
+                  <View style={styles.pulseContainer}>
+                    <Zap size={18} color="#8B5CF6" fill="#8B5CF6" />
+                  </View>
+                  <View style={styles.orderInfo}>
+                    <Text style={styles.orderStatus}>{data.activeOrder.status} ({data.activeOrder.progress}%)</Text>
+                    <Text style={styles.orderName}>{data.activeOrder.title} • {data.activeOrder.timeRemaining}</Text>
+                  </View>
                 </View>
-                <View style={styles.orderInfo}>
-                  <Text style={styles.orderStatus}>EDITING IN PROGRESS (35%)</Text>
-                  <Text style={styles.orderName}>Cinematic Reel • 12 mins left</Text>
-                </View>
-              </View>
-              <ChevronRight size={20} color="#FFF" />
-            </LinearGradient>
-          </TouchableOpacity>
-        </Animated.View>
+                <ChevronRight size={20} color="#FFF" />
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
 
         {/* 4. Quick Access (AI Studio & Membership) */}
         <View style={styles.quickAccessRow}>
@@ -139,9 +171,19 @@ export default function CustomerHome() {
           <TouchableOpacity><Text style={styles.seeAll}>See All</Text></TouchableOpacity>
         </View>
         <View style={styles.categoriesGrid}>
-          {CATEGORIES.map((item, index) => (
+          {data?.categories?.map((item: any, index: number) => (
             <Animated.View key={item.id} entering={FadeInUp.delay(300 + index * 50)} style={styles.catWrapper}>
-              <TouchableOpacity onPress={() => router.push('/(customer)/upload')} activeOpacity={0.9}>
+              <TouchableOpacity 
+                onPress={() => router.push({
+                  pathname: '/(customer)/upload',
+                  params: { 
+                    categoryId: item.id,
+                    categoryTitle: item.title,
+                    basePrice: item.price
+                  }
+                })} 
+                activeOpacity={0.9}
+              >
                 <GlassCard style={styles.catCard}>
                   <View style={styles.catIconBox}><Text style={styles.catIcon}>{item.icon}</Text></View>
                   <Text style={styles.catTitle}>{item.title}</Text>

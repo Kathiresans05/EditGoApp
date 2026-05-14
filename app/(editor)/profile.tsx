@@ -1,24 +1,76 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { Star, Shield, Award, Clock, Settings, LogOut, ChevronRight } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { Star, Shield, Award, Clock, Settings, LogOut, ChevronRight, AlertCircle } from 'lucide-react-native';
 import { GlassCard } from '../../src/components/ui/GlassCard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
+import { authService } from '../../src/services/api';
 
 export default function EditorProfile() {
   const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+      const data = await authService.getMe();
+      setUser(data);
+    } catch (error) {
+      console.error('[EditorProfile] Fetch Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await SecureStore.deleteItemAsync('userToken');
+    await SecureStore.setItemAsync('userRole', '');
+    router.replace('/login');
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#8B5CF6" />
+      </View>
+    );
+  }
+
+  if (!user) {
+    return (
+      <View style={styles.centerContainer}>
+        <AlertCircle size={40} color="#EF4444" />
+        <Text style={styles.errorText}>Failed to load profile</Text>
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtnSmall}>
+          <Text style={styles.logoutTextSmall}>Log Out</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const editor = user.editorProfile;
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <View style={styles.profileBox}>
           <View style={styles.avatarContainer}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>AK</Text></View>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {user.name?.substring(0, 2).toUpperCase() || '??'}
+              </Text>
+            </View>
             <View style={styles.badge}><Award size={16} color="#FFF" /></View>
           </View>
-          <Text style={styles.name}>Arjun Kumar</Text>
+          <Text style={styles.name}>{user.name || 'Anonymous Editor'}</Text>
           <View style={styles.levelRow}>
-            <Text style={styles.levelLabel}>MASTER EDITOR</Text>
+            <Text style={styles.levelLabel}>{editor?.level || 'BEGINNER'} EDITOR</Text>
             <View style={styles.verifiedBadge}>
               <Shield size={10} color="#FFF" fill="#FFF" />
               <Text style={styles.verifiedText}>PREMIUM</Text>
@@ -34,15 +86,22 @@ export default function EditorProfile() {
 
         <View style={styles.ratingBar}>
           <View style={styles.ratingItem}>
-            <Text style={styles.ratingVal}>4.92</Text>
+            <Text style={styles.ratingVal}>{editor?.rating?.toFixed(1) || '0.0'}</Text>
             <View style={styles.stars}>
-              {[1,2,3,4,5].map(i => <Star key={i} size={10} color="#F59E0B" fill="#F59E0B" />)}
+              {[1,2,3,4,5].map(i => (
+                <Star 
+                  key={i} 
+                  size={10} 
+                  color={i <= (editor?.rating || 0) ? "#F59E0B" : "#E2E8F0"} 
+                  fill={i <= (editor?.rating || 0) ? "#F59E0B" : "#E2E8F0"} 
+                />
+              ))}
             </View>
             <Text style={styles.ratingLabel}>Overall Rating</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.ratingItem}>
-            <Text style={styles.ratingVal}>1,242</Text>
+            <Text style={styles.ratingVal}>{editor?.totalOrders?.toLocaleString() || '0'}</Text>
             <Text style={styles.ratingLabel}>Total Edits</Text>
           </View>
         </View>
@@ -59,9 +118,9 @@ export default function EditorProfile() {
 
         <Text style={styles.sectionTitle}>Performance Breakdown</Text>
         <GlassCard style={styles.menuCard}>
-          <PerformanceItem icon={<Clock size={20} color="#8B5CF6" />} label="Average Delivery" value="1.5 Hours" />
-          <PerformanceItem icon={<Star size={20} color="#F59E0B" />} label="Review Accuracy" value="4.8/5" />
-          <PerformanceItem icon={<Shield size={20} color="#10B981" />} label="Completion Rate" value="98.5%" />
+          <PerformanceItem icon={<Clock size={20} color="#8B5CF6" />} label="Average Delivery" value={editor?.responseSpeed || "2.0 Hours"} />
+          <PerformanceItem icon={<Star size={20} color="#F59E0B" />} label="Review Accuracy" value={`${editor?.rating?.toFixed(1) || '0.0'}/5`} />
+          <PerformanceItem icon={<Shield size={20} color="#10B981" />} label="Completion Rate" value="100%" />
         </GlassCard>
 
         <TouchableOpacity style={styles.settingsBtn}>
@@ -72,11 +131,7 @@ export default function EditorProfile() {
 
         <TouchableOpacity 
           style={styles.logoutBtn} 
-          onPress={async () => {
-            await SecureStore.deleteItemAsync('userToken');
-            await SecureStore.setItemAsync('userRole', '');
-            router.replace('/login');
-          }}
+          onPress={handleLogout}
         >
           <LogOut size={20} color="#EF4444" />
           <Text style={styles.logoutText}>Log Out & Exit</Text>
@@ -119,6 +174,11 @@ function PerformanceItem({ icon, label, value }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
+  errorText: { marginTop: 10, fontSize: 16, color: '#EF4444', fontWeight: '700' },
+  logoutBtnSmall: { marginTop: 20, padding: 10 },
+  logoutTextSmall: { color: '#8B5CF6', fontWeight: '700' },
+
   header: { paddingTop: 80, alignItems: 'center', backgroundColor: '#FFF', paddingBottom: 32, borderBottomLeftRadius: 40, borderBottomRightRadius: 40 },
   profileBox: { alignItems: 'center', marginBottom: 20 },
   avatarContainer: { position: 'relative' },
