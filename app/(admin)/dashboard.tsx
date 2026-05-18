@@ -56,6 +56,7 @@ export default function AdminDashboard() {
 
   const navItems = [
     { name: 'Dashboard', icon: Home, route: '/(admin)/dashboard' },
+    { name: 'Rapid Tracker', icon: Zap, route: '/(admin)/rapid-tracker' },
     { name: 'Live Activity', icon: Activity, route: '/(admin)/live-activity' },
     { name: 'Payments', icon: Wallet, route: '/(admin)/revenue-reports' },
     { name: 'Withdrawals', icon: DollarSign, route: '/(admin)/withdrawals' },

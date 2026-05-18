@@ -1,20 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
-import { Star, Shield, Award, Clock, Settings, LogOut, ChevronRight, AlertCircle } from 'lucide-react-native';
-import { GlassCard } from '../../src/components/ui/GlassCard';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, StatusBar } from 'react-native';
+import { Star, Shield, Award, Clock, Settings, LogOut, ChevronRight, AlertCircle, Film, User, CheckCircle2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { authService } from '../../src/services/api';
+import Animated, { FadeInUp } from 'react-native-reanimated';
+
+const CAT_COLORS = ['#EDE7F6', '#E3F2FD', '#E8F5E9', '#FFF3E0'];
 
 export default function EditorProfile() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
+  useEffect(() => { fetchProfile(); }, []);
 
   const fetchProfile = async () => {
     try {
@@ -37,7 +37,7 @@ export default function EditorProfile() {
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
+        <ActivityIndicator size="large" color="#4F46E5" />
       </View>
     );
   }
@@ -57,110 +57,126 @@ export default function EditorProfile() {
   const editor = user.editorProfile;
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <View style={styles.profileBox}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {user.name?.substring(0, 2).toUpperCase() || '??'}
-              </Text>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#4F46E5" />
+      
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+        
+        {/* Header section with Indigo Gradient */}
+        <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.header}>
+          <View style={styles.profileRow}>
+            <View style={styles.avatarContainer}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {user.name ? user.name.substring(0, 2).toUpperCase() : 'AE'}
+                </Text>
+              </View>
+              <View style={styles.badge}><Award size={14} color="#FFF" /></View>
             </View>
-            <View style={styles.badge}><Award size={16} color="#FFF" /></View>
-          </View>
-          <Text style={styles.name}>{user.name || 'Anonymous Editor'}</Text>
-          <View style={styles.levelRow}>
-            <Text style={styles.levelLabel}>{editor?.level || 'BEGINNER'} EDITOR</Text>
-            <View style={styles.verifiedBadge}>
-              <Shield size={10} color="#FFF" fill="#FFF" />
-              <Text style={styles.verifiedText}>PREMIUM</Text>
+            <View style={styles.userInfo}>
+              <Text style={styles.name}>{user.name || 'Anonymous Editor'}</Text>
+              <View style={styles.levelRow}>
+                <Text style={styles.levelLabel}>{editor?.level || 'PRO'} EDITOR</Text>
+                <View style={styles.verifiedBadge}>
+                  <Shield size={10} color="#FFF" fill="#FFF" />
+                  <Text style={styles.verifiedText}>PREMIUM</Text>
+                </View>
+              </View>
             </View>
           </View>
+
+          {/* Overall Rating and Edits bar */}
+          <View style={styles.ratingBar}>
+            <View style={styles.ratingItem}>
+              <Text style={styles.ratingVal}>{editor?.rating?.toFixed(1) || '4.9'}</Text>
+              <View style={styles.stars}>
+                {[1,2,3,4,5].map(i => (
+                  <Star 
+                    key={i} 
+                    size={10} 
+                    color={i <= (editor?.rating || 4.9) ? "#F59E0B" : "#E2E8F0"} 
+                    fill={i <= (editor?.rating || 4.9) ? "#F59E0B" : "#E2E8F0"} 
+                  />
+                ))}
+              </View>
+              <Text style={styles.ratingLabel}>Overall Rating</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.ratingItem}>
+              <Text style={styles.ratingVal}>{editor?.totalOrders?.toLocaleString() || '18'}</Text>
+              <Text style={styles.ratingLabel}>Total Edits</Text>
+            </View>
+          </View>
+        </LinearGradient>
+
+        <View style={styles.body}>
+          
+          {/* Skill Tag list */}
+          <Text style={styles.secTitle}>My Specializations</Text>
+          <View style={styles.badgesRow}>
+            <Badge icon="⚡" label="Rapid Deliveries" color="#4F46E5" bg="#EDE7F6" />
+            <Badge icon="🎬" label="Cinematic Video" color="#2E7D32" bg="#E8F5E9" />
+            <Badge icon="🎥" label="Shorts & Reels" color="#FB8C00" bg="#FFF3E0" />
+          </View>
+
+          {/* Portfolio Showcases */}
+          <Text style={styles.secTitle}>Portfolio Showcase</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.portfolioScroll}>
+            <PortfolioItem title="Cinematic Vlog Reel" tag="VLOG" color="#4F46E5" bg="#EDE7F6" />
+            <PortfolioItem title="Gaming Highlights" tag="GAMING" color="#2E7D32" bg="#E8F5E9" />
+            <PortfolioItem title="AI Visual Shorts" tag="SHORTS" color="#FB8C00" bg="#FFF3E0" />
+          </ScrollView>
+
+          {/* Performance stats summary */}
+          <Text style={styles.secTitle}>Performance Summary</Text>
+          <View style={styles.perfCard}>
+            <PerformanceRow icon={<Clock size={18} color="#4F46E5" />} label="Average Speed" value={editor?.responseSpeed || "1.5 Hours"} />
+            <PerformanceRow icon={<Star size={18} color="#FB8C00" />} label="Review Rate" value="4.9 / 5" />
+            <PerformanceRow icon={<CheckCircle2 size={18} color="#2E7D32" />} label="Successful delivery" value="100%" />
+          </View>
+
+          {/* Actions */}
+          <TouchableOpacity style={styles.menuItem}>
+            <View style={styles.menuLeft}>
+              <View style={[styles.menuIcon, { backgroundColor: '#EDE7F6' }]}><Settings size={18} color="#4F46E5" /></View>
+              <Text style={styles.menuText}>Account Settings</Text>
+            </View>
+            <ChevronRight size={18} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+            <LogOut size={18} color="#EF4444" />
+            <Text style={styles.logoutText}>Log Out &amp; Exit</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.badgesRow}>
-          <Badge icon="⚡" label="Fast Delivery" color="#F59E0B" />
-          <Badge icon="🎬" label="Cinematic Expert" color="#8B5CF6" />
-          <Badge icon="🎮" label="Gaming Pro" color="#3B82F6" />
-        </View>
-
-        <View style={styles.ratingBar}>
-          <View style={styles.ratingItem}>
-            <Text style={styles.ratingVal}>{editor?.rating?.toFixed(1) || '0.0'}</Text>
-            <View style={styles.stars}>
-              {[1,2,3,4,5].map(i => (
-                <Star 
-                  key={i} 
-                  size={10} 
-                  color={i <= (editor?.rating || 0) ? "#F59E0B" : "#E2E8F0"} 
-                  fill={i <= (editor?.rating || 0) ? "#F59E0B" : "#E2E8F0"} 
-                />
-              ))}
-            </View>
-            <Text style={styles.ratingLabel}>Overall Rating</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.ratingItem}>
-            <Text style={styles.ratingVal}>{editor?.totalOrders?.toLocaleString() || '0'}</Text>
-            <Text style={styles.ratingLabel}>Total Edits</Text>
-          </View>
-        </View>
-      </View>
-
-
-      <View style={styles.content}>
-        <Text style={styles.sectionTitle}>Editor Portfolio</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.portfolioScroll}>
-          <PortfolioItem title="Cinematic Reel" color="#8B5CF6" />
-          <PortfolioItem title="Gaming Montage" color="#3B82F6" />
-          <PortfolioItem title="AI Style Edit" color="#EC4899" />
-        </ScrollView>
-
-        <Text style={styles.sectionTitle}>Performance Breakdown</Text>
-        <GlassCard style={styles.menuCard}>
-          <PerformanceItem icon={<Clock size={20} color="#8B5CF6" />} label="Average Delivery" value={editor?.responseSpeed || "2.0 Hours"} />
-          <PerformanceItem icon={<Star size={20} color="#F59E0B" />} label="Review Accuracy" value={`${editor?.rating?.toFixed(1) || '0.0'}/5`} />
-          <PerformanceItem icon={<Shield size={20} color="#10B981" />} label="Completion Rate" value="100%" />
-        </GlassCard>
-
-        <TouchableOpacity style={styles.settingsBtn}>
-          <Settings size={20} color="#64748B" />
-          <Text style={styles.settingsText}>Account Settings</Text>
-          <ChevronRight size={20} color="#CBD5E1" />
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.logoutBtn} 
-          onPress={handleLogout}
-        >
-          <LogOut size={20} color="#EF4444" />
-          <Text style={styles.logoutText}>Log Out & Exit</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={{ height: 120 }} />
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
-function Badge({ icon, label, color }: any) {
+function Badge({ icon, label, color, bg }: any) {
   return (
-    <View style={[styles.badgeItem, { borderColor: color + '40' }]}>
+    <View style={[styles.badgeItem, { backgroundColor: bg }]}>
       <Text style={styles.badgeIcon}>{icon}</Text>
       <Text style={[styles.badgeLabel, { color: color }]}>{label}</Text>
     </View>
   );
 }
 
-function PortfolioItem({ title, color }: any) {
+function PortfolioItem({ title, tag, color, bg }: any) {
   return (
-    <TouchableOpacity style={[styles.pItem, {backgroundColor: color}]}>
-      <Text style={styles.pText}>{title}</Text>
+    <TouchableOpacity style={[styles.pItem, { backgroundColor: bg }]}>
+      <Film size={20} color={color} />
+      <View>
+        <Text style={[styles.pTag, { color: color }]}>{tag}</Text>
+        <Text style={styles.pText} numberOfLines={2}>{title}</Text>
+      </View>
     </TouchableOpacity>
   );
 }
 
-function PerformanceItem({ icon, label, value }: any) {
+function PerformanceRow({ icon, label, value }: any) {
   return (
     <View style={styles.perfItem}>
       <View style={styles.perfLeft}>
@@ -174,45 +190,55 @@ function PerformanceItem({ icon, label, value }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' },
-  errorText: { marginTop: 10, fontSize: 16, color: '#EF4444', fontWeight: '700' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
+  errorText: { marginTop: 10, fontSize: 15, color: '#EF4444', fontWeight: '800' },
   logoutBtnSmall: { marginTop: 20, padding: 10 },
-  logoutTextSmall: { color: '#8B5CF6', fontWeight: '700' },
+  logoutTextSmall: { color: '#4F46E5', fontWeight: '800' },
 
-  header: { paddingTop: 80, alignItems: 'center', backgroundColor: '#FFF', paddingBottom: 32, borderBottomLeftRadius: 40, borderBottomRightRadius: 40 },
-  profileBox: { alignItems: 'center', marginBottom: 20 },
+  header: { paddingTop: 58, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 20 },
   avatarContainer: { position: 'relative' },
-  avatar: { width: 90, height: 90, borderRadius: 45, backgroundColor: '#F5F3FF', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 32, fontWeight: '800', color: '#8B5CF6' },
-  badge: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#8B5CF6', padding: 6, borderRadius: 12, borderWidth: 3, borderColor: '#FFF' },
-  name: { fontSize: 22, fontWeight: '800', color: '#1E293B', marginTop: 16 },
-  levelRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
-  levelLabel: { fontSize: 12, fontWeight: '900', color: '#8B5CF6', letterSpacing: 1 },
-  verifiedBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginLeft: 8 },
-  verifiedText: { color: '#FFF', fontSize: 10, fontWeight: '800', marginLeft: 4 },
-  badgesRow: { flexDirection: 'row', marginBottom: 24 },
-  badgeItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, backgroundColor: '#FFF', marginHorizontal: 4 },
-  badgeIcon: { fontSize: 14 },
-  badgeLabel: { fontSize: 11, fontWeight: '700', marginLeft: 6 },
-  ratingBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', paddingVertical: 16, paddingHorizontal: 32, borderRadius: 20 },
-  ratingItem: { alignItems: 'center', paddingHorizontal: 20 },
-  ratingVal: { fontSize: 18, fontWeight: '800', color: '#1E293B' },
-  stars: { flexDirection: 'row', marginTop: 4 },
-  ratingLabel: { fontSize: 10, color: '#94A3B8', marginTop: 4, textTransform: 'uppercase' },
-  divider: { width: 1, height: 30, backgroundColor: '#E2E8F0' },
-  content: { padding: 24 },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1E293B', marginTop: 24, marginBottom: 16 },
-  portfolioScroll: { marginBottom: 8 },
-  pItem: { width: 140, height: 180, borderRadius: 20, padding: 16, justifyContent: 'flex-end', marginRight: 12 },
-  pText: { color: '#FFF', fontWeight: '800', fontSize: 14 },
-  menuCard: { padding: 8, backgroundColor: '#FFF' },
-  perfItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12 },
-  perfLeft: { flexDirection: 'row', alignItems: 'center' },
-  perfIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center', marginRight: 16 },
-  perfLabel: { fontSize: 15, fontWeight: '600', color: '#1E293B' },
-  perfValue: { fontSize: 14, fontWeight: '700', color: '#8B5CF6' },
-  settingsBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 16, borderRadius: 20, marginTop: 24 },
-  settingsText: { flex: 1, fontSize: 15, fontWeight: '600', color: '#1E293B', marginLeft: 12 },
-  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 20, marginTop: 32 },
-  logoutText: { color: '#EF4444', fontWeight: '700', fontSize: 16, marginLeft: 10 }
+  avatar: { width: 68, height: 68, borderRadius: 34, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 24, fontWeight: '900', color: '#FFF' },
+  badge: { position: 'absolute', bottom: -2, right: -2, backgroundColor: '#4F46E5', padding: 4, borderRadius: 10, borderWidth: 2.5, borderColor: '#FFF' },
+  userInfo: { flex: 1 },
+  name: { fontSize: 18, fontWeight: '900', color: '#FFF' },
+  levelRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 8 },
+  levelLabel: { fontSize: 11, fontWeight: '800', color: 'rgba(255,255,255,0.85)', letterSpacing: 0.5 },
+  verifiedBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, gap: 2 },
+  verifiedText: { color: '#FFF', fontSize: 8, fontWeight: '900' },
+
+  ratingBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', paddingVertical: 14, paddingHorizontal: 20, borderRadius: 20, elevation: 2, shadowColor: '#4F46E5', shadowOpacity: 0.05, shadowRadius: 10 },
+  ratingItem: { flex: 1, alignItems: 'center' },
+  ratingVal: { fontSize: 18, fontWeight: '900', color: '#1E293B' },
+  stars: { flexDirection: 'row', marginTop: 2 },
+  ratingLabel: { fontSize: 9, color: '#94A3B8', marginTop: 4, fontWeight: '700', textTransform: 'uppercase' },
+  divider: { width: 1, height: 28, backgroundColor: '#F1F5F9' },
+
+  body: { padding: 20 },
+  secTitle: { fontSize: 15, fontWeight: '900', color: '#1E293B', marginBottom: 12, marginTop: 14 },
+  badgesRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  badgeItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, gap: 5 },
+  badgeIcon: { fontSize: 12 },
+  badgeLabel: { fontSize: 10, fontWeight: '800' },
+
+  portfolioScroll: { gap: 10, marginBottom: 12 },
+  pItem: { width: 120, height: 120, borderRadius: 20, padding: 14, justifyContent: 'space-between' },
+  pTag: { fontSize: 9, fontWeight: '900' },
+  pText: { fontSize: 12, fontWeight: '800', color: '#1E293B', marginTop: 4 },
+
+  perfCard: { backgroundColor: '#FFF', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, marginBottom: 16, elevation: 1 },
+  perfItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' },
+  perfLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  perfIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
+  perfLabel: { fontSize: 13, fontWeight: '800', color: '#475569' },
+  perfValue: { fontSize: 13, fontWeight: '900', color: '#1E293B' },
+
+  menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFF', borderRadius: 16, padding: 14, elevation: 1, marginBottom: 16 },
+  menuLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  menuIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  menuText: { fontSize: 14, fontWeight: '800', color: '#1E293B' },
+
+  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, gap: 8, marginTop: 10 },
+  logoutText: { color: '#EF4444', fontWeight: '900', fontSize: 15 },
 });

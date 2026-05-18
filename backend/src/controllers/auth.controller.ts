@@ -111,11 +111,32 @@ export const login = async (req: Request, res: Response) => {
 
 export const getMe = async (req: any, res: Response) => {
   try {
+    const userId = req.user.id;
     const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
+      where: { id: userId },
       include: { editorProfile: true }
     });
-    res.json(user);
+
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Get order stats for customer
+    const orderCount = await prisma.order.count({
+      where: { customerId: userId }
+    });
+
+    const totalSpent = await prisma.order.aggregate({
+      where: { customerId: userId, status: 'COMPLETED' },
+      _sum: { price: true }
+    });
+
+    res.json({
+      ...user,
+      stats: {
+        totalOrders: orderCount,
+        totalSpent: totalSpent._sum.price || 0,
+        avgRating: 4.8 // Mock rating for customer profile for now
+      }
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching profile' });
   }

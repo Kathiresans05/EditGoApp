@@ -4,10 +4,10 @@ import { AuthRequest } from '../middlewares/auth.middleware';
 
 export const createOrder = async (req: AuthRequest, res: Response) => {
   try {
-    const { title, category, price, videoUrl, editorId } = req.body;
+    const { title, category, price, videoUrl, editorId, deliverySpeed, initialETAMins } = req.body;
     const customerId = req.user.id;
 
-    console.log('[Order] Creating order:', { title, category, price, editorId });
+    console.log('[Order] Creating order:', { title, category, price, editorId, deliverySpeed, initialETAMins });
 
     const order = await prisma.order.create({
       data: {
@@ -19,6 +19,8 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         videoUrl: videoUrl || '',
         status: editorId ? 'ACCEPTED' : 'SEARCHING',
         progress: editorId ? 10 : 0,
+        deliverySpeed,
+        initialETAMins: initialETAMins ? parseInt(initialETAMins) : null,
       },
     });
 

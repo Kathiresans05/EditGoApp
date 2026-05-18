@@ -1,19 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Dimensions, ActivityIndicator } from 'react-native';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch,
+  Dimensions, ActivityIndicator, Modal, Alert, Image, StatusBar,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { 
-  Zap, TrendingUp, Star, Award, 
-  ArrowUpRight, Clock, ShieldCheck, 
-  ChevronRight, BarChart3, AlertCircle,
-  CheckCircle, Zap as ZapIcon, Bell,
-  UserCircle
+import {
+  Zap, TrendingUp, Star, Award, Clock, ChevronRight,
+  AlertCircle, CheckCircle, Bell, UserCircle, BarChart3,
 } from 'lucide-react-native';
-import { GlassCard } from '../../src/components/ui/GlassCard';
-import Animated, { FadeInUp, FadeInRight } from 'react-native-reanimated';
+import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
-import { authService, orderService } from '../../src/services/api';
+import api, { authService, orderService } from '../../src/services/api';
+import { Audio } from 'expo-av';
 
 const { width } = Dimensions.get('window');
+
+const STAT_CARDS = [
+  { key: 'earnings', label: 'Total Earnings', prefix: '₹', bg: '#EDE7F6', text: '#7C3AED', accent: '#7C3AED' },
+  { key: 'successRate', label: 'Success Rate', suffix: '%', bg: '#E8F5E9', text: '#2E7D32', accent: '#10B981' },
+  { key: 'totalOrders', label: 'Projects Done', bg: '#E3F2FD', text: '#1565C0', accent: '#1E88E5' },
+  { key: 'rating', label: 'Avg Rating', suffix: '⭐', bg: '#FFF3E0', text: '#E65100', accent: '#FB8C00' },
+];
 
 export default function EditorDashboard() {
   const router = useRouter();
@@ -22,248 +29,350 @@ export default function EditorDashboard() {
   const [activeJobs, setActiveJobs] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sound, setSound] = useState<any>(null);
 
   useEffect(() => {
     fetchDashboardData();
+    const interval = setInterval(() => fetchDashboardData(true), 5000);
+    return () => {
+      clearInterval(interval);
+      if (sound) sound.unloadAsync();
+    };
   }, []);
 
-  const fetchDashboardData = async () => {
+  useEffect(() => {
+    if (requests.length > 0 && isOnline) playSound();
+    else stopSound();
+  }, [requests.length, isOnline]);
+
+  const playSound = async () => {
     try {
-      setLoading(true);
-      const [profile, ordersData] = await Promise.all([
-        authService.getMe(),
-        orderService.getMyOrders()
-      ]);
-      
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3' },
+        { shouldPlay: true, isLooping: true, volume: 1.0 }
+      );
+      setSound(newSound);
+    } catch (error) { console.error('Failed to play sound', error); }
+  };
+
+  const stopSound = async () => {
+    if (sound) { await sound.stopAsync(); await sound.unloadAsync(); setSound(null); }
+  };
+
+  const fetchDashboardData = async (isSilent = false) => {
+    try {
+      if (!isSilent) setLoading(true);
+      const [profile, ordersData] = await Promise.all([authService.getMe(), orderService.getMyOrders()]);
       setUser(profile);
       setIsOnline(profile.editorProfile?.isOnline || false);
-      
       const allOrders = ordersData.orders || [];
       setActiveJobs(allOrders.filter((o: any) => o.status !== 'SEARCHING' && o.status !== 'COMPLETED'));
       setRequests(allOrders.filter((o: any) => o.status === 'SEARCHING'));
-      
     } catch (error) {
-      console.error('[EditorDashboard] Data Fetch Error:', error);
-    } finally {
-      setLoading(false);
-    }
+      console.error('[EditorDashboard] Fetch Error:', error);
+    } finally { setLoading(false); }
   };
 
-  const toggleOnline = async (value: boolean) => {
-    setIsOnline(value);
-    // TODO: Connect to real API to update online status
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#8B5CF6" />
-      </View>
-    );
-  }
+  if (loading) return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
+      <ActivityIndicator size="large" color="#4F46E5" />
+    </View>
+  );
 
   const editor = user?.editorProfile;
+  const progress = (editor?.totalOrders || 0) % 10 * 10 || 10;
+  const statValues: Record<string, any> = {
+    earnings: (editor?.totalEarnings || 0).toLocaleString(),
+    successRate: editor?.successRate || 100,
+    totalOrders: editor?.totalOrders || 0,
+    rating: editor?.rating?.toFixed(1) || '5.0',
+  };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* 1. Editor Portal Header */}
-      <LinearGradient colors={['#6366F1', '#4F46E5', '#3B82F6']} style={styles.header}>
+      <StatusBar barStyle="light-content" backgroundColor="#4F46E5" />
+
+      {/* ── HEADER ── */}
+      <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.header}>
+        {/* Top row */}
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.welcome}>Editor Portal</Text>
-            <Text style={styles.subWelcome}>Hello, {user?.name || 'Pro Editor'}</Text>
+            <Text style={styles.headerTitle}>Editor Portal</Text>
+            <Text style={styles.headerSub}>Hello, {user?.name?.split(' ')[0] || 'Editor'} 🎬</Text>
           </View>
           <View style={styles.headerActions}>
-            <TouchableOpacity 
-              style={styles.switchBtn} 
-              onPress={() => router.push('/(customer)/home')}
-            >
-              <UserCircle size={18} color="#8B5CF6" />
+            <TouchableOpacity style={styles.switchBtn} onPress={() => router.push('/(customer)/home')}>
+              <UserCircle size={16} color="#4F46E5" />
               <Text style={styles.switchText}>Switch</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.bellBtn}>
+            <TouchableOpacity style={styles.bellWrap}>
               <Bell size={20} color="#FFF" />
               {requests.length > 0 && <View style={styles.dot} />}
             </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.headerBottom}>
+        {/* Level badge + Online toggle */}
+        <View style={styles.badgeRow}>
           <View style={styles.levelBadge}>
-            <Award size={14} color="#FFD700" fill="#FFD700" />
+            <Award size={13} color="#FFD700" fill="#FFD700" />
             <Text style={styles.levelText}>{editor?.level || 'BEGINNER'} EDITOR</Text>
           </View>
-          <View style={styles.onlineToggle}>
-            <Text style={styles.onlineStatusText}>{isOnline ? 'ONLINE' : 'OFFLINE'}</Text>
-            <Switch 
-              value={isOnline} 
-              onValueChange={toggleOnline} 
-              trackColor={{ false: '#FFFFFF40', true: '#10B981' }}
+          <View style={styles.onlineRow}>
+            <Text style={styles.onlineLabel}>{isOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}</Text>
+            <Switch
+              value={isOnline}
+              onValueChange={setIsOnline}
+              trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#4ADE80' }}
               thumbColor="#FFF"
             />
           </View>
         </View>
 
-        {/* Progress Bar */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressTitle}>Progress to Next Level</Text>
-            <Text style={styles.progressPercent}>{editor?.totalOrders % 10 * 10}%</Text>
+        {/* Progress to next level */}
+        <View style={styles.progressWrap}>
+          <View style={styles.progressTop}>
+            <Text style={styles.progressLabel}>Progress to Next Level</Text>
+            <Text style={styles.progressPercent}>{progress}%</Text>
           </View>
-          <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: `${(editor?.totalOrders % 10 * 10) || 10}%` }]} />
+          <View style={styles.progressBg}>
+            <View style={[styles.progressFill, { width: `${progress}%` as any }]} />
           </View>
         </View>
       </LinearGradient>
 
-      <View style={styles.content}>
-        {/* 2. Stats Grid */}
-        <View style={styles.statsGrid}>
-          <Animated.View entering={FadeInUp.delay(200)} style={styles.statBox}>
-            <GlassCard style={styles.statCard}>
-              <Text style={styles.statLabel}>Total Earnings</Text>
-              <Text style={styles.statValue}>₹{editor?.totalEarnings?.toLocaleString() || '0'}</Text>
-              <View style={styles.trendContainer}>
-                <ArrowUpRight size={12} color="#10B981" />
-                <Text style={styles.trendGreen}>Live from wallet</Text>
-              </View>
-            </GlassCard>
-          </Animated.View>
+      <View style={styles.body}>
 
-          <Animated.View entering={FadeInUp.delay(300)} style={styles.statBox}>
-            <GlassCard style={styles.statCard}>
-              <Text style={styles.statLabel}>Success Rate</Text>
-              <Text style={styles.statValue}>{editor?.successRate || '100'}%</Text>
-              <View style={styles.trendContainer}>
-                <Star size={12} color="#F59E0B" fill="#F59E0B" />
-                <Text style={styles.trendText}>{editor?.rating?.toFixed(1) || '0.0'} Rating</Text>
-              </View>
-            </GlassCard>
-          </Animated.View>
+        {/* ── STAT CARDS ── */}
+        <View style={styles.statsGrid}>
+          {STAT_CARDS.map((card, i) => (
+            <Animated.View entering={FadeInUp.delay(100 + i * 60)} key={card.key} style={styles.statCell}>
+              <TouchableOpacity
+                style={[styles.statCard, { backgroundColor: card.bg }]}
+                onPress={() => card.key === 'earnings' && router.push('/(editor)/wallet')}
+              >
+                <Text style={styles.statLabel}>{card.label}</Text>
+                <Text style={[styles.statValue, { color: card.text }]}>
+                  {card.prefix || ''}{statValues[card.key]}{card.suffix || ''}
+                </Text>
+                <View style={[styles.accentBar, { backgroundColor: card.accent }]} />
+              </TouchableOpacity>
+            </Animated.View>
+          ))}
         </View>
 
-        {/* 3. New Requests Section */}
+        {/* ── NEW REQUESTS ── */}
         {requests.length > 0 && (
-          <>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>New Requests ({requests.length})</Text>
-              <View style={styles.onlineIndicator}>
-                <View style={styles.greenDot} />
-                <Text style={styles.onlineLabel}>ACTIVE</Text>
+          <Animated.View entering={FadeInUp.delay(300)}>
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionTitle}>New Requests</Text>
+              <View style={styles.livePill}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>LIVE</Text>
               </View>
             </View>
             {requests.map((req, idx) => (
-              <Animated.View entering={FadeInUp.delay(400 + idx * 100)} key={req.id} style={{ marginBottom: 12 }}>
-                <GlassCard style={styles.requestCard}>
-                  <View style={styles.requestInfo}>
-                    <Text style={styles.requestTitle}>{req.title}</Text>
-                    <Text style={styles.requestSubtitle}>Budget: ₹{req.price} • {req.category}</Text>
-                  </View>
-                  <TouchableOpacity style={styles.acceptBtn} onPress={() => router.push('/(editor)/requests')}>
-                    <Text style={styles.acceptText}>View</Text>
-                  </TouchableOpacity>
-                </GlassCard>
+              <Animated.View entering={FadeInUp.delay(350 + idx * 60)} key={req.id} style={styles.requestCard}>
+                <View style={styles.requestIconWrap}>
+                  <Zap size={18} color="#4F46E5" fill="#4F46E5" />
+                </View>
+                <View style={styles.requestInfo}>
+                  <Text style={styles.requestTitle}>{req.title}</Text>
+                  <Text style={styles.requestMeta}>Budget: ₹{req.price} · {req.category}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.viewBtn}
+                  onPress={() => router.push('/(editor)/requests')}
+                >
+                  <Text style={styles.viewBtnText}>View</Text>
+                </TouchableOpacity>
               </Animated.View>
             ))}
-          </>
+          </Animated.View>
         )}
 
-        {/* 4. Active Job Card */}
-        <View style={styles.sectionHeader}>
+        {/* ── ACTIVE JOBS ── */}
+        <View style={styles.sectionRow}>
           <Text style={styles.sectionTitle}>In Progress ({activeJobs.length})</Text>
         </View>
         {activeJobs.length > 0 ? activeJobs.map((job, idx) => (
-          <Animated.View entering={FadeInUp.delay(500 + idx * 100)} key={job.id} style={{ marginBottom: 12 }}>
-            <View style={styles.activeJobCard}>
+          <Animated.View entering={FadeInUp.delay(400 + idx * 60)} key={job.id}>
+            <View style={styles.jobCard}>
               <View style={styles.jobHeader}>
-                <Clock size={20} color="#EF4444" />
-                <Text style={styles.jobHeaderText}>{job.status} • {job.progress}% DONE</Text>
+                <View style={styles.jobStatusBadge}>
+                  <Clock size={12} color="#4F46E5" />
+                  <Text style={styles.jobStatusText}>{job.status} · {job.progress}%</Text>
+                </View>
               </View>
               <Text style={styles.jobTitle}>{job.title} for {job.customer?.name || 'Client'}</Text>
-              <TouchableOpacity style={styles.workspaceBtn} onPress={() => router.push('/(editor)/requests')}>
-                <Text style={styles.workspaceBtnText}>Update Progress</Text>
-                <ChevronRight size={18} color="#FFF" />
+
+              {/* Progress bar */}
+              <View style={styles.jobProgressBg}>
+                <View style={[styles.jobProgressFill, { width: `${job.progress || 0}%` as any }]} />
+              </View>
+
+              <TouchableOpacity
+                style={styles.updateBtn}
+                onPress={() => router.push('/(editor)/requests')}
+              >
+                <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.updateBtnGrad}>
+                  <Text style={styles.updateBtnText}>Update Progress</Text>
+                  <ChevronRight size={16} color="#FFF" />
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           </Animated.View>
         )) : (
-          <View style={styles.emptyContainer}>
-            <AlertCircle size={32} color="#CBD5E1" />
-            <Text style={styles.emptyText}>No active jobs at the moment</Text>
+          <View style={styles.emptyBox}>
+            <AlertCircle size={28} color="#DDD6FE" />
+            <Text style={styles.emptyText}>No active jobs right now</Text>
           </View>
         )}
 
-        {/* 5. Performance Analytics */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Performance Analytics</Text>
-          <TouchableOpacity onPress={() => router.push('/(editor)/earnings')}>
-            <Text style={styles.detailsText}>Details</Text>
-          </TouchableOpacity>
+        {/* ── PORTFOLIO SAMPLES ── */}
+        <View style={styles.sectionRow}>
+          <Text style={styles.sectionTitle}>My Samples</Text>
+          <Text style={styles.addNew}>+ Add New</Text>
         </View>
-        <GlassCard style={styles.analyticsCard}>
-          <BarChart3 size={32} color="#CBD5E1" />
-          <Text style={styles.loadingText}>Orders History: {editor?.totalOrders || 0} Projects</Text>
-        </GlassCard>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
+          {[
+            'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=400',
+            'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=400',
+            'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=400',
+          ].map((uri, i) => (
+            <View key={i} style={styles.sampleCard}>
+              <Image source={{ uri }} style={styles.sampleImg} />
+              <View style={styles.sampleTimeBadge}>
+                <Zap size={9} color="#FFF" fill="#FFF" />
+                <Text style={styles.sampleTimeText}>{[22, 18, 31][i]}m</Text>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
 
-        <View style={{ height: 100 }} />
+        <View style={{ height: 110 }} />
       </View>
+
+      {/* ── RAPID ALERT MODAL ── */}
+      <Modal visible={requests.length > 0 && isOnline} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <Animated.View entering={FadeInUp} style={styles.alertCard}>
+            <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.alertGrad}>
+              <Zap size={40} color="#FFF" fill="#FFF" />
+              <Text style={styles.alertBadge}>⚡ NEW RAPID ORDER</Text>
+              <Text style={styles.alertTitle}>{requests[0]?.title}</Text>
+              <Text style={styles.alertPrice}>₹{requests[0]?.price}</Text>
+              <View style={styles.alertTimerRow}>
+                <Clock size={14} color="rgba(255,255,255,0.8)" />
+                <Text style={styles.alertTimerText}>Delivery in {requests[0]?.initialETAMins} mins</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.claimBtn}
+                onPress={async () => {
+                  try {
+                    const response = await api.post(`/orders/${requests[0].id}/claim`);
+                    if (response.data.success) router.push('/(editor)/requests');
+                  } catch {
+                    Alert.alert('Error', 'Project already claimed.');
+                    fetchDashboardData();
+                  }
+                }}
+              >
+                <Text style={styles.claimText}>ACCEPT PROJECT NOW</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setRequests([])} style={{ marginTop: 18 }}>
+                <Text style={{ color: 'rgba(255,255,255,0.6)', fontWeight: '700', fontSize: 14 }}>Ignore</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          </Animated.View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyContainer: { alignItems: 'center', justifyContent: 'center', padding: 40, backgroundColor: '#FFF', borderRadius: 24, borderStyle: 'dashed', borderWidth: 2, borderColor: '#E2E8F0' },
-  emptyText: { marginTop: 12, color: '#94A3B8', fontWeight: '600' },
-  
-  header: { paddingTop: 60, paddingBottom: 30, paddingHorizontal: 24, borderBottomLeftRadius: 40, borderBottomRightRadius: 40 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  welcome: { fontSize: 28, fontWeight: '900', color: '#FFF' },
-  subWelcome: { fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: '600' },
-  headerActions: { flexDirection: 'row', alignItems: 'center' },
-  switchBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F3FF', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, marginRight: 12 },
-  switchText: { fontSize: 13, fontWeight: '800', color: '#8B5CF6', marginLeft: 6 },
-  bellBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  dot: { position: 'absolute', top: 12, right: 12, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444', borderWidth: 2, borderColor: '#4F46E5' },
-  headerBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 },
-  levelBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
-  levelText: { color: '#FFF', fontSize: 10, fontWeight: '800', marginLeft: 6 },
-  onlineToggle: { flexDirection: 'row', alignItems: 'center' },
-  onlineStatusText: { fontSize: 10, fontWeight: '900', color: '#FFF', marginRight: 8, letterSpacing: 1 },
-  progressContainer: { marginTop: 20 },
-  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  progressTitle: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600' },
+
+  header: { paddingTop: 58, paddingBottom: 28, paddingHorizontal: 20, borderBottomLeftRadius: 32, borderBottomRightRadius: 32 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
+  headerTitle: { fontSize: 26, fontWeight: '900', color: '#FFF' },
+  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: '600', marginTop: 2 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  switchBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F3FF', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, gap: 6 },
+  switchText: { fontSize: 12, fontWeight: '800', color: '#4F46E5' },
+  bellWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  dot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444', borderWidth: 2, borderColor: '#4F46E5' },
+
+  badgeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  levelBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 12, gap: 6 },
+  levelText: { color: '#FFF', fontSize: 11, fontWeight: '900' },
+  onlineRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  onlineLabel: { color: '#FFF', fontSize: 11, fontWeight: '900' },
+
+  progressWrap: {},
+  progressTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  progressLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600' },
   progressPercent: { color: '#FFF', fontSize: 12, fontWeight: '900' },
-  progressBarBg: { height: 6, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 3 },
-  progressBarFill: { height: 6, backgroundColor: '#FFF', borderRadius: 3 },
-  content: { padding: 20 },
-  statsGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 24 },
-  statBox: { width: '48%' },
-  statCard: { padding: 16, backgroundColor: '#FFF', borderRadius: 24 },
-  statLabel: { fontSize: 11, color: '#64748B', fontWeight: '600' },
-  statValue: { fontSize: 22, fontWeight: '900', color: '#1E293B', marginVertical: 6 },
-  trendContainer: { flexDirection: 'row', alignItems: 'center' },
-  trendGreen: { fontSize: 10, color: '#10B981', fontWeight: '700', marginLeft: 4 },
-  trendText: { fontSize: 10, color: '#64748B', fontWeight: '700', marginLeft: 4 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, marginTop: 10 },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1E293B' },
-  onlineIndicator: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0FDF4', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  greenDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10B981', marginRight: 6 },
-  onlineLabel: { fontSize: 9, fontWeight: '900', color: '#10B981' },
-  requestCard: { padding: 16, backgroundColor: '#FFF', borderRadius: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  progressBg: { height: 7, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 4 },
+  progressFill: { height: 7, backgroundColor: '#FFF', borderRadius: 4 },
+
+  body: { padding: 20 },
+
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 },
+  statCell: { width: (width - 52) / 2 },
+  statCard: { borderRadius: 18, padding: 16, overflow: 'hidden', elevation: 1 },
+  statLabel: { fontSize: 11, color: '#64748B', fontWeight: '700', marginBottom: 6 },
+  statValue: { fontSize: 22, fontWeight: '900' },
+  accentBar: { position: 'absolute', top: 0, right: 0, width: 4, height: '100%', borderTopRightRadius: 18, borderBottomRightRadius: 18, opacity: 0.5 },
+
+  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 8 },
+  sectionTitle: { fontSize: 17, fontWeight: '900', color: '#1E293B' },
+  livePill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF2F2', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, gap: 5 },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' },
+  liveText: { fontSize: 10, fontWeight: '900', color: '#EF4444' },
+  addNew: { fontSize: 13, fontWeight: '800', color: '#4F46E5' },
+
+  requestCard: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF',
+    borderRadius: 18, padding: 14, marginBottom: 10, gap: 12,
+    borderWidth: 1, borderColor: '#EDE9FE',
+    elevation: 1,
+  },
+  requestIconWrap: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#EDE7F6', alignItems: 'center', justifyContent: 'center' },
   requestInfo: { flex: 1 },
-  requestTitle: { fontSize: 15, fontWeight: '700', color: '#1E293B' },
-  requestSubtitle: { fontSize: 12, color: '#64748B', marginTop: 4 },
-  acceptBtn: { backgroundColor: '#8B5CF6', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12 },
-  acceptText: { color: '#FFF', fontWeight: '800', fontSize: 13 },
-  activeJobCard: { backgroundColor: '#F5F3FF', padding: 20, borderRadius: 24, borderWidth: 1, borderColor: '#DDD6FE' },
-  jobHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  jobHeaderText: { fontSize: 11, fontWeight: '900', color: '#8B5CF6', marginLeft: 8 },
-  jobTitle: { fontSize: 15, fontWeight: '700', color: '#1E293B', marginBottom: 16, lineHeight: 22 },
-  workspaceBtn: { backgroundColor: '#8B5CF6', paddingVertical: 12, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  workspaceBtnText: { color: '#FFF', fontWeight: '800', fontSize: 14, marginRight: 8 },
-  detailsText: { fontSize: 13, color: '#6366F1', fontWeight: '700' },
-  analyticsCard: { height: 120, backgroundColor: '#FFF', borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 30 },
-  loadingText: { fontSize: 13, color: '#94A3B8', marginTop: 12, fontWeight: '600' }
+  requestTitle: { fontSize: 14, fontWeight: '800', color: '#1E293B' },
+  requestMeta: { fontSize: 12, color: '#64748B', marginTop: 3, fontWeight: '600' },
+  viewBtn: { backgroundColor: '#4F46E5', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12 },
+  viewBtnText: { color: '#FFF', fontWeight: '800', fontSize: 13 },
+
+  jobCard: { backgroundColor: '#EDE7F6', borderRadius: 20, padding: 18, marginBottom: 12, borderWidth: 1, borderColor: '#DDD6FE' },
+  jobHeader: { marginBottom: 8 },
+  jobStatusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', backgroundColor: '#FFF', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
+  jobStatusText: { fontSize: 11, fontWeight: '900', color: '#4F46E5' },
+  jobTitle: { fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 14, lineHeight: 20 },
+  jobProgressBg: { height: 6, backgroundColor: 'rgba(79,70,229,0.15)', borderRadius: 3, marginBottom: 14 },
+  jobProgressFill: { height: 6, backgroundColor: '#4F46E5', borderRadius: 3 },
+  updateBtn: { borderRadius: 14, overflow: 'hidden', elevation: 3 },
+  updateBtnGrad: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 13, gap: 6 },
+  updateBtnText: { color: '#FFF', fontWeight: '800', fontSize: 14 },
+
+  emptyBox: { alignItems: 'center', paddingVertical: 32, backgroundColor: '#F8FAFC', borderRadius: 18, borderWidth: 2, borderStyle: 'dashed', borderColor: '#E2E8F0', marginBottom: 12 },
+  emptyText: { color: '#94A3B8', fontWeight: '700', marginTop: 10, fontSize: 13 },
+
+  sampleCard: { width: 130, height: 170, borderRadius: 18, overflow: 'hidden', elevation: 3 },
+  sampleImg: { width: '100%', height: '100%' },
+  sampleTimeBadge: { position: 'absolute', bottom: 10, left: 10, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.65)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, gap: 4 },
+  sampleTimeText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.9)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  alertCard: { width: '100%', borderRadius: 32, overflow: 'hidden', elevation: 12 },
+  alertGrad: { padding: 32, alignItems: 'center' },
+  alertBadge: { color: '#FFF', fontSize: 12, fontWeight: '900', letterSpacing: 2, marginVertical: 12 },
+  alertTitle: { color: '#FFF', fontSize: 22, fontWeight: '900', textAlign: 'center' },
+  alertPrice: { color: '#4ADE80', fontSize: 28, fontWeight: '900', marginVertical: 10 },
+  alertTimerRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, gap: 8, marginBottom: 24 },
+  alertTimerText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
+  claimBtn: { width: '100%', backgroundColor: '#FFF', paddingVertical: 18, borderRadius: 20, alignItems: 'center' },
+  claimText: { color: '#4F46E5', fontSize: 16, fontWeight: '900', letterSpacing: 0.5 },
 });

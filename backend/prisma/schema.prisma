@@ -92,6 +92,9 @@ model Order {
   isPaid        Boolean     @default(false)
   paymentId     String?     // Transaction ID
   
+  deliverySpeed String?     // "standard", "turbo", "zap"
+  initialETAMins Int?       // Original estimated minutes
+  
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 }

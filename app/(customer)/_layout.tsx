@@ -60,7 +60,7 @@ export default function CustomerLayout() {
         listeners={{
           tabPress: (e) => {
             e.preventDefault();
-            router.push('/(customer)/upload');
+            router.push('/(customer)/rapid-studio');
           },
         }}
         options={{ 
@@ -102,6 +102,7 @@ export default function CustomerLayout() {
       />
 
       {/* Hiding these from tabs but keeping in group */}
+      <Tabs.Screen name="rapid-studio" options={{ href: null }} />
       <Tabs.Screen name="upload" options={{ href: null }} />
       <Tabs.Screen name="matching" options={{ href: null }} />
       <Tabs.Screen name="tracking" options={{ href: null }} />

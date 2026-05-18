@@ -27,35 +27,17 @@ const getDebuggerHost = () => {
 
 const DEFAULT_ANDROID_URL = 'http://10.0.2.2:8000/api';
 const DETECTED_URL = getDebuggerHost();
-const FALLBACK_URL = 'http://192.168.1.7:8000/api'; // Using detected machine IP as fallback
+const FALLBACK_URL = 'http://192.168.1.26:8000/api'; // Using detected machine IP as fallback
 
-export let BASE_URL = DETECTED_URL || (Platform.OS === 'android' ? DEFAULT_ANDROID_URL : FALLBACK_URL);
+export let BASE_URL = 'http://192.168.1.26:8000/api'; // FORCE EXACT IP FOR NOW
 
 // Initialize BASE_URL from SecureStore if available
 export const initBaseUrl = async () => {
-  let savedUrl = await SecureStore.getItemAsync('server_url');
-  
-  // CRITICAL: Clear the old, incorrect IP if it's stuck in storage
-  if (savedUrl && (savedUrl.includes('10.10.101.8') || savedUrl.includes('10.0.2.2'))) {
-    console.log('[API] Clearing stale/incorrect URL from storage:', savedUrl);
-    await SecureStore.deleteItemAsync('server_url');
-    savedUrl = null;
-  }
-
-  if (savedUrl) {
-    console.log('[API] Using Valid Saved URL:', savedUrl);
-    BASE_URL = savedUrl;
-    api.defaults.baseURL = savedUrl;
-  } else if (DETECTED_URL) {
-    console.log('[API] Using Detected URL:', DETECTED_URL);
-    BASE_URL = DETECTED_URL;
-    api.defaults.baseURL = DETECTED_URL;
-  } else {
-    // Force the known machine IP as the absolute fallback
-    BASE_URL = 'http://192.168.1.7:8000/api';
-    api.defaults.baseURL = BASE_URL;
-    console.log('[API] Using Hardcoded Machine IP Fallback:', BASE_URL);
-  }
+  // FORCE THE CORRECT IP
+  const FORCED_IP = 'http://192.168.1.26:8000/api';
+  console.log('[API] Forcing IP address to:', FORCED_IP);
+  BASE_URL = FORCED_IP;
+  api.defaults.baseURL = FORCED_IP;
 };
 
 const api = axios.create({
