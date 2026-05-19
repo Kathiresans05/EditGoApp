@@ -13,8 +13,8 @@ import * as SecureStore from 'expo-secure-store';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [phone, setPhone] = useState('9787278026');
-  const [password, setPassword] = useState('123');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showServerSettings, setShowServerSettings] = useState(false);
