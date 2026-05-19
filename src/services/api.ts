@@ -25,17 +25,16 @@ const getDebuggerHost = () => {
   return url;
 };
 
-const DEFAULT_ANDROID_URL = 'http://10.0.2.2:8000/api';
-const DETECTED_URL = getDebuggerHost();
-const FALLBACK_URL = 'http://10.10.101.8:8000/api'; // Using detected machine IP as fallback
+const DEFAULT_ANDROID_URL = 'https://editgoapp.onrender.com/api';
+const DETECTED_URL = 'https://editgoapp.onrender.com/api';
+const FALLBACK_URL = 'https://editgoapp.onrender.com/api';
 
-export let BASE_URL = 'http://10.10.101.8:8000/api'; // FORCE EXACT IP FOR NOW
+export let BASE_URL = 'https://editgoapp.onrender.com/api';
 
 // Initialize BASE_URL from SecureStore if available
 export const initBaseUrl = async () => {
-  // FORCE THE CORRECT IP
-  const FORCED_IP = 'http://10.10.101.8:8000/api';
-  console.log('[API] Forcing IP address to:', FORCED_IP);
+  const FORCED_IP = 'https://editgoapp.onrender.com/api';
+  console.log('[API] Setting Production Backend URL:', FORCED_IP);
   BASE_URL = FORCED_IP;
   api.defaults.baseURL = FORCED_IP;
 };
