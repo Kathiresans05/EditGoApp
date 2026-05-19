@@ -11,7 +11,7 @@ export const getCheckoutPage = async (req: Request, res: Response) => {
     const { orderId } = req.params;
 
     const order = await prisma.order.findUnique({
-      where: { id: orderId },
+      where: { id: orderId as string },
       include: { customer: true },
     });
 
@@ -96,9 +96,9 @@ export const getCheckoutPage = async (req: Request, res: Response) => {
             description: "Payment for Order #${order.id.slice(-6).toUpperCase()}",
             order_id: "${razorpayOrder.id}",
             prefill: {
-              name: "${order.customer.name || ''}",
-              email: "${order.customer.email || ''}",
-              contact: "${order.customer.phone || ''}"
+              name: "${(order as any).customer?.name || ''}",
+              email: "${(order as any).customer?.email || ''}",
+              contact: "${(order as any).customer?.phone || ''}"
             },
             theme: {
               color: "#7C3AED"

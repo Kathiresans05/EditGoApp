@@ -56,7 +56,7 @@ export const getOrderById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const order = await prisma.order.findUnique({
-      where: { id },
+      where: { id: id as string },
       include: { customer: true, editor: { include: { user: true } } },
     });
 
@@ -83,7 +83,7 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
     if (paymentId !== undefined) updateData.paymentId = paymentId;
 
     const order = await prisma.order.update({
-      where: { id },
+      where: { id: id as string },
       data: updateData,
     });
 
@@ -98,7 +98,7 @@ export const addPreview = async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
     const { previewUrl } = req.body;
 
-    const order = await prisma.order.findUnique({ where: { id } });
+    const order = await prisma.order.findUnique({ where: { id: id as string } });
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
     if (order.previews.length >= 3) {
@@ -106,7 +106,7 @@ export const addPreview = async (req: AuthRequest, res: Response) => {
     }
 
     const updatedOrder = await prisma.order.update({
-      where: { id },
+      where: { id: id as string },
       data: {
         previews: {
           push: previewUrl
@@ -143,7 +143,7 @@ export const claimOrder = async (req: AuthRequest, res: Response) => {
     if (!editor) return res.status(403).json({ message: 'You are not registered as an editor' });
 
     const order = await prisma.order.update({
-      where: { id },
+      where: { id: id as string },
       data: { 
         editorId: editor.id,
         status: 'ACCEPTED',
