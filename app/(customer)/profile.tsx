@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Switch, ActivityIndicator, Alert, StatusBar,
@@ -8,7 +8,7 @@ import {
   LogOut, ChevronRight, Star, Briefcase, Gift,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { authService } from '../../src/services/api';
 import Animated, { FadeInUp } from 'react-native-reanimated';
@@ -24,7 +24,11 @@ export default function ProfileScreen() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { fetchProfile(); }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchProfile();
+    }, [])
+  );
 
   const fetchProfile = async () => {
     try {
@@ -86,7 +90,7 @@ export default function ProfileScreen() {
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarText}>{getInitials(user?.name)}</Text>
           </View>
-          <TouchableOpacity style={styles.editBtn}>
+          <TouchableOpacity style={styles.editBtn} onPress={() => router.push('/(customer)/personal-info')}>
             <Text style={styles.editBtnText}>✏️</Text>
           </TouchableOpacity>
         </View>
@@ -134,12 +138,14 @@ export default function ProfileScreen() {
             icon={<User size={18} color="#1E88E5" />}
             iconBg="#E3F2FD"
             label="Personal Information"
+            onPress={() => router.push('/(customer)/personal-info')}
           />
           <View style={styles.divider} />
           <MenuLink
             icon={<CreditCard size={18} color="#FB8C00" />}
             iconBg="#FFF3E0"
             label="Payment Methods"
+            onPress={() => router.push('/(customer)/payment-methods')}
           />
           <View style={styles.divider} />
           <MenuLink
@@ -176,9 +182,19 @@ export default function ProfileScreen() {
         {/* ── SUPPORT ── */}
         <Text style={styles.sectionTitle}>Support</Text>
         <Animated.View entering={FadeInUp.delay(250)} style={styles.menuCard}>
-          <MenuLink icon={<HelpCircle size={18} color="#FB8C00" />} iconBg="#FFF3E0" label="Help Center" />
+          <MenuLink
+            icon={<HelpCircle size={18} color="#FB8C00" />}
+            iconBg="#FFF3E0"
+            label="Help Center"
+            onPress={() => router.push('/(customer)/help-center')}
+          />
           <View style={styles.divider} />
-          <MenuLink icon={<Shield size={18} color="#10B981" />} iconBg="#E8F5E9" label="Privacy Policy" />
+          <MenuLink
+            icon={<Shield size={18} color="#10B981" />}
+            iconBg="#E8F5E9"
+            label="Privacy Policy"
+            onPress={() => router.push('/(customer)/privacy-policy')}
+          />
         </Animated.View>
 
         {/* ── LOGOUT ── */}

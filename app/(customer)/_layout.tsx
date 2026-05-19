@@ -1,8 +1,10 @@
-import { Tabs } from 'expo-router';
-import { Home, MessageSquare, Clock, User } from 'lucide-react-native';
+import { Tabs, useRouter } from 'expo-router';
+import { Home, MessageSquare, Clock, User, Zap } from 'lucide-react-native';
 import { View, StyleSheet, Platform } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function CustomerLayout() {
+  const router = useRouter();
   return (
     <Tabs screenOptions={{
       headerShown: false,
@@ -108,6 +110,10 @@ export default function CustomerLayout() {
       <Tabs.Screen name="tracking" options={{ href: null }} />
       <Tabs.Screen name="ai-studio" options={{ href: null }} />
       <Tabs.Screen name="membership" options={{ href: null }} />
+      <Tabs.Screen name="personal-info" options={{ href: null }} />
+      <Tabs.Screen name="payment-methods" options={{ href: null }} />
+      <Tabs.Screen name="help-center" options={{ href: null }} />
+      <Tabs.Screen name="privacy-policy" options={{ href: null }} />
     </Tabs>
 
   );

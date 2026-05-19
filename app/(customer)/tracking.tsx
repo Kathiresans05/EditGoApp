@@ -15,6 +15,7 @@ import { orderService, authService, BASE_URL } from '../../src/services/api';
 import ChatModal from '../../src/components/ChatModal';
 import axios from 'axios';
 import Animated, { FadeInUp } from 'react-native-reanimated';
+import * as WebBrowser from 'expo-web-browser';
 
 export default function TrackingScreen() {
   const router = useRouter();
@@ -48,9 +49,43 @@ export default function TrackingScreen() {
       }
     }, 15000);
 
+    // Listen for deep link redirections (from Razorpay WebView checkout redirect)
+    const handleDeepLink = (event: { url: string }) => {
+      console.log('[Tracking] Received Deep Link:', event.url);
+      if (event.url.includes('editgo://payment-success')) {
+        // Dismiss WebBrowser overlay
+        WebBrowser.dismissBrowser();
+        
+        // Parse params from deep link URL
+        const parsedUrl = event.url.replace('editgo://', 'http://localhost/');
+        const success = parsedUrl.includes('status=success');
+        const cancel = parsedUrl.includes('status=cancel');
+        
+        if (success) {
+          Alert.alert('Payment Successful! 🎉', 'Your high-res video has been unlocked successfully.', [
+            { text: 'Awesome!', onPress: () => {
+              setShowCheckout(false);
+              fetchOrder();
+            }}
+          ]);
+        } else if (cancel) {
+          Alert.alert('Payment Cancelled', 'Payment checkout was cancelled.');
+        } else {
+          Alert.alert('Payment Failed', 'Something went wrong during payment verification.');
+        }
+      }
+    };
+
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+    
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink({ url });
+    });
+
     return () => {
       clearInterval(interval);
       clearTimeout(autoAssignTimer);
+      subscription.remove();
     };
   }, [id, order?.status]);
 
@@ -75,6 +110,22 @@ export default function TrackingScreen() {
   const safeOpenURL = (url: string | null | undefined) => {
     if (!url) { Alert.alert('Not Available', 'Link is missing.'); return; }
     Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open link.'));
+  };
+
+  const handleLiveRazorpay = async () => {
+    try {
+      const checkoutUrl = `${BASE_URL.replace('/api', '')}/api/payments/checkout/${order.id}`;
+      console.log('[Tracking] Launching Live Razorpay Checkout:', checkoutUrl);
+      
+      // Close Checkout modal before opening WebBrowser for better UX
+      setShowCheckout(false);
+      
+      // Open custom Razorpay Checkout in-app browser overlay
+      await WebBrowser.openBrowserAsync(checkoutUrl);
+    } catch (err: any) {
+      console.error('[Tracking] Razorpay Launch Error:', err);
+      Alert.alert('Error', 'Failed to launch Razorpay payment portal.');
+    }
   };
 
   const handlePay = async () => {
@@ -298,11 +349,26 @@ export default function TrackingScreen() {
                   <Text style={styles.pcValue}>₹{order.price}</Text>
                 </View>
 
-                <Text style={styles.secSubTitle}>Select Payment Method</Text>
+                {/* Live Razorpay Checkout */}
+                <TouchableOpacity style={styles.livePayBtn} onPress={handleLiveRazorpay}>
+                  <LinearGradient colors={['#7C3AED', '#5B21B6']} style={styles.livePayGrad}>
+                    <CreditCard size={18} color="#FFF" />
+                    <Text style={styles.livePayText}>PAY LIVE WITH RAZORPAY</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                {/* Divider */}
+                <View style={styles.dividerRow}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.dividerText}>OR TEST SANDBOX</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                {/* Mock/Simulated payment method selectors */}
                 <TouchableOpacity style={styles.methodCard} onPress={handlePay}>
                   <View style={styles.methodLeft}>
                     <Smartphone size={20} color="#7C3AED" />
-                    <Text style={styles.methodText}>UPI (GPay, PhonePe, Paytm)</Text>
+                    <Text style={styles.methodText}>Simulated UPI (Mock Pay)</Text>
                   </View>
                   <ChevronRight size={18} color="#CBD5E1" />
                 </TouchableOpacity>
@@ -310,14 +376,14 @@ export default function TrackingScreen() {
                 <TouchableOpacity style={styles.methodCard} onPress={handlePay}>
                   <View style={styles.methodLeft}>
                     <CreditCard size={20} color="#7C3AED" />
-                    <Text style={styles.methodText}>Debit / Credit Card</Text>
+                    <Text style={styles.methodText}>Simulated Card (Mock Pay)</Text>
                   </View>
                   <ChevronRight size={18} color="#CBD5E1" />
                 </TouchableOpacity>
 
                 <View style={styles.infoBadge}>
                   <ShieldCheck size={16} color="#2E7D32" />
-                  <Text style={styles.infoBadgeText}>Mock Gateway: No money will be charged</Text>
+                  <Text style={styles.infoBadgeText}>Live Razorpay or simulated sandbox testing</Text>
                 </View>
               </>
             )}
@@ -567,4 +633,12 @@ const styles = StyleSheet.create({
   reviewInput: { width: '100%', backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, height: 90, fontSize: 14, color: '#1E293B', textAlignVertical: 'top', fontWeight: '600', marginBottom: 20, borderWidth: 1, borderColor: '#E2E8F0' },
   submitRevBtn: { width: '100%', backgroundColor: '#7C3AED', paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
   submitRevText: { color: '#FFF', fontSize: 15, fontWeight: '900' },
+
+  livePayBtn: { width: '100%', borderRadius: 16, overflow: 'hidden', marginBottom: 16, marginTop: 4, elevation: 4, shadowColor: '#7C3AED', shadowOpacity: 0.2, shadowRadius: 8 },
+  livePayGrad: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 16, gap: 8 },
+  livePayText: { color: '#FFF', fontSize: 14, fontWeight: '900', letterSpacing: 0.5 },
+
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 14, gap: 10 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
+  dividerText: { fontSize: 10, fontWeight: '800', color: '#94A3B8' },
 });

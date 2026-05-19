@@ -27,14 +27,14 @@ const getDebuggerHost = () => {
 
 const DEFAULT_ANDROID_URL = 'http://10.0.2.2:8000/api';
 const DETECTED_URL = getDebuggerHost();
-const FALLBACK_URL = 'http://192.168.1.26:8000/api'; // Using detected machine IP as fallback
+const FALLBACK_URL = 'http://10.10.101.8:8000/api'; // Using detected machine IP as fallback
 
-export let BASE_URL = 'http://192.168.1.26:8000/api'; // FORCE EXACT IP FOR NOW
+export let BASE_URL = 'http://10.10.101.8:8000/api'; // FORCE EXACT IP FOR NOW
 
 // Initialize BASE_URL from SecureStore if available
 export const initBaseUrl = async () => {
   // FORCE THE CORRECT IP
-  const FORCED_IP = 'http://192.168.1.26:8000/api';
+  const FORCED_IP = 'http://10.10.101.8:8000/api';
   console.log('[API] Forcing IP address to:', FORCED_IP);
   BASE_URL = FORCED_IP;
   api.defaults.baseURL = FORCED_IP;
@@ -95,6 +95,11 @@ export const authService = {
     if (response.data.message.includes('Successfully')) {
       await SecureStore.setItemAsync('userRole', 'EDITOR');
     }
+    return response.data;
+  },
+
+  updateProfile: async (name: string, email: string) => {
+    const response = await api.post('/auth/update-profile', { name, email });
     return response.data;
   },
 
@@ -179,6 +184,10 @@ export const customerService = {
   },
   getEditors: async () => {
     const response = await api.get('/customer/editors');
+    return response.data;
+  },
+  addFunds: async (amount: number) => {
+    const response = await api.post('/customer/add-funds', { amount });
     return response.data;
   },
 };

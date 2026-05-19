@@ -184,19 +184,30 @@ export const updateProfile = async (req: any, res: Response) => {
     const userId = req.user.id;
     const { name, email, isOnline, bio, skills } = req.body;
 
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { editorProfile: true }
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const updateData: any = { name, email };
+
+    if (currentUser.role === 'EDITOR' && currentUser.editorProfile) {
+      updateData.editorProfile = {
+        update: {
+          isOnline: isOnline !== undefined ? isOnline : undefined,
+          bio,
+          skills,
+        }
+      };
+    }
+
     const user = await prisma.user.update({
       where: { id: userId },
-      data: {
-        name,
-        email,
-        editorProfile: {
-          update: {
-            isOnline,
-            bio,
-            skills,
-          }
-        }
-      },
+      data: updateData,
       include: { editorProfile: true }
     });
 

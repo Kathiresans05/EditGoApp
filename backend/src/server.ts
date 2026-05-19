@@ -45,11 +45,13 @@ import authRoutes from './routes/auth.routes';
 import orderRoutes from './routes/order.routes';
 import adminRoutes from './routes/admin.routes';
 import customerRoutes from './routes/customer.routes';
+import paymentRoutes from './routes/payment.routes';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/customer', customerRoutes);
+app.use('/api/payments', paymentRoutes);
 
 
 const PORT = process.env.PORT || 8000;

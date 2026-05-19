@@ -98,3 +98,30 @@ export const getEditors = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Error fetching editors', error: error.message });
   }
 };
+
+export const addFunds = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user.id;
+    const { amount } = req.body;
+
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ message: 'Invalid amount specification' });
+    }
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        walletBalance: {
+          increment: Number(amount)
+        }
+      }
+    });
+
+    res.status(200).json({
+      message: `Successfully loaded ₹${amount} into your wallet!`,
+      walletBalance: user.walletBalance
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: 'Error adding funds to wallet', error: error.message });
+  }
+};
