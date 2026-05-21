@@ -1,12 +1,13 @@
 import { Router } from 'express';
-import { getCheckoutPage, verifyPayment } from '../controllers/payment.controller';
+import { createPaymentOrder, verifyPayment } from '../controllers/payment.controller';
+import { authMiddleware } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-// Endpoint to fetch / open the payment checkout page
-router.get('/checkout/:orderId', getCheckoutPage);
+// Create a razorpay order to initiate checkout
+router.post('/create-order', authMiddleware, createPaymentOrder);
 
-// Endpoint to verify Razorpay transaction signatures
-router.post('/verify', verifyPayment);
+// Verify payment signature after successful client transaction
+router.post('/verify', authMiddleware, verifyPayment);
 
 export default router;

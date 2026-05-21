@@ -111,7 +111,7 @@ export default function CustomerHome() {
         {/* ── ACTIVE ORDER PILL ── */}
         {data?.activeOrder && (
           <Animated.View entering={FadeInDown.delay(100)} style={styles.activeOrderWrap}>
-            <TouchableOpacity onPress={() => router.push('/(customer)/tracking')}>
+            <TouchableOpacity onPress={() => router.push({ pathname: '/(customer)/tracking', params: { orderId: data.activeOrder.id } })}>
               <LinearGradient colors={['#7C3AED', '#4F46E5']} style={styles.activeOrderCard}>
                 <View style={styles.pulseWrap}>
                   <Zap size={16} color="#7C3AED" fill="#7C3AED" />

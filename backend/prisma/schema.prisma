@@ -46,6 +46,34 @@ enum OrderStatus {
   COMPLETED
 }
 
+enum TrustLevel {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+  ELITE
+}
+
+enum ContentSensitivity {
+  PUBLIC
+  PRIVATE
+  SENSITIVE
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum ViolationSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
 model User {
   id            String    @id @default(auto()) @map("_id") @db.ObjectId
   phone         String    @unique
@@ -95,6 +123,9 @@ model Order {
   deliverySpeed String?     // "standard", "turbo", "zap"
   initialETAMins Int?       // Original estimated minutes
   
+  contentSensitivity ContentSensitivity @default(PRIVATE)
+  privacyAgreementSigned Boolean @default(false)
+  
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 }
@@ -126,9 +157,30 @@ model Editor {
   totalEarnings   Float         @default(0)
   
   isOnline        Boolean       @default(false)
+  
+  // Verification
+  verificationStatus VerificationStatus @default(PENDING)
+  aadhaarNumber      String?   
+  panNumber          String?   
+  idDocumentUrl      String?   
+  selfieUrl          String?   
+  bankAccount        String?   
+  isVerified         Boolean   @default(false)
+  verifiedAt         DateTime?
+  
+  // Trust & Security
+  trustScore         Int          @default(50)
+  trustLevel         TrustLevel   @default(BRONZE)
+  violationCount     Int          @default(0)
+  isSuspended        Boolean      @default(false)
+  suspensionReason   String?
+  suspensionEnd      DateTime?
+
   favoritedByIds  String[]      @db.ObjectId
   favoritedBy     User[]        @relation("FavoriteEditors", fields: [favoritedByIds], references: [id])
   orders          Order[]       @relation("EditorOrders")
+  violations         ViolationReport[]
+  accessLogs         FileAccessLog[]
 }
 
 model PortfolioItem {
@@ -141,4 +193,36 @@ model PortfolioItem {
   beforeUrl   String?  
   category    String   
   likes       Int      @default(0)
+}
+
+model ViolationReport {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  editorId    String   @db.ObjectId
+  editor      Editor   @relation(fields: [editorId], references: [id])
+  reporterId  String?  @db.ObjectId // Customer or Admin ID
+  orderId     String?  @db.ObjectId
+  
+  type        String   // "CONTENT_MISUSE", "PRIVACY_BREACH", etc.
+  severity    ViolationSeverity
+  description String
+  evidenceUrl String?
+  status      String   @default("OPEN") // OPEN, INVESTIGATING, RESOLVED, DISMISSED
+  adminNotes  String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model FileAccessLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  editorId    String   @db.ObjectId
+  editor      Editor   @relation(fields: [editorId], references: [id])
+  orderId     String   @db.ObjectId
+  
+  fileType    String   // "ORIGINAL", "DRAFT", "FINAL"
+  action      String   // "VIEW", "DOWNLOAD"
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime @default(now())
 }

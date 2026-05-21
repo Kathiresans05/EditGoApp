@@ -34,6 +34,7 @@ app.use((err: any, req: any, res: any, next: any) => {
 
 // Socket.IO setup
 setupSockets(io);
+app.set('io', io);
 
 // Basic Route
 app.get('/', (req, res) => {
@@ -46,12 +47,14 @@ import orderRoutes from './routes/order.routes';
 import adminRoutes from './routes/admin.routes';
 import customerRoutes from './routes/customer.routes';
 import paymentRoutes from './routes/payment.routes';
+import editorRoutes from './routes/editor.routes';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/customer', customerRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/editor', editorRoutes);
 
 
 const PORT = process.env.PORT || 8000;

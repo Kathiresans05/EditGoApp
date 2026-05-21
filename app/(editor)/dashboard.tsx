@@ -10,7 +10,7 @@ import {
 } from 'lucide-react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
-import api, { authService, orderService } from '../../src/services/api';
+import api, { authService, orderService, editorService } from '../../src/services/api';
 import { Audio } from 'expo-av';
 
 const { width } = Dimensions.get('window');
@@ -62,12 +62,16 @@ export default function EditorDashboard() {
   const fetchDashboardData = async (isSilent = false) => {
     try {
       if (!isSilent) setLoading(true);
-      const [profile, ordersData] = await Promise.all([authService.getMe(), orderService.getMyOrders()]);
+      const [profile, ordersData, availableData] = await Promise.all([
+        authService.getMe(),
+        orderService.getMyOrders(),
+        editorService.getAvailableOrders()
+      ]);
       setUser(profile);
       setIsOnline(profile.editorProfile?.isOnline || false);
       const allOrders = ordersData.orders || [];
       setActiveJobs(allOrders.filter((o: any) => o.status !== 'SEARCHING' && o.status !== 'COMPLETED'));
-      setRequests(allOrders.filter((o: any) => o.status === 'SEARCHING'));
+      setRequests(availableData.orders || []);
     } catch (error) {
       console.error('[EditorDashboard] Fetch Error:', error);
     } finally { setLoading(false); }
@@ -272,8 +276,9 @@ export default function EditorDashboard() {
                   try {
                     const response = await api.post(`/orders/${requests[0].id}/claim`);
                     if (response.data.success) router.push('/(editor)/requests');
-                  } catch {
-                    Alert.alert('Error', 'Project already claimed.');
+                  } catch (error: any) {
+                    const msg = error.response?.data?.message || 'Project already claimed or unavailable.';
+                    Alert.alert('Cannot Claim Project', msg);
                     fetchDashboardData();
                   }
                 }}

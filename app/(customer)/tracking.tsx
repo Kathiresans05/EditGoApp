@@ -16,11 +16,15 @@ import ChatModal from '../../src/components/ChatModal';
 import axios from 'axios';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import * as WebBrowser from 'expo-web-browser';
+import { Audio } from 'expo-av';
 
 export default function TrackingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const id = params.id || params.orderId;
+
+  const previousStatusRef = React.useRef<string | null>(null);
+  const previousPreviewsLengthRef = React.useRef<number>(0);
 
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -33,6 +37,48 @@ export default function TrackingScreen() {
   const [rating, setRating] = useState(5);
   const [reviewText, setReviewText] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  useEffect(() => {
+    const playSound = async (type: 'accept' | 'preview' | 'completed') => {
+      try {
+        const uris = {
+          accept: 'https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3', // Chime
+          preview: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3', // Notification pop
+          completed: 'https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3', // Success/Ta-da
+        };
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: uris[type] },
+          { shouldPlay: true, volume: 1.0 }
+        );
+        setTimeout(() => sound.unloadAsync(), 4000);
+      } catch (error) {
+        console.log(`Error playing ${type} sound`, error);
+      }
+    };
+
+    if (order) {
+      // 1. Check for editor acceptance
+      if (previousStatusRef.current === 'SEARCHING' && order.status === 'ACCEPTED') {
+        playSound('accept');
+      }
+      
+      // 2. Check for final video completion
+      if (previousStatusRef.current !== 'COMPLETED' && order.status === 'COMPLETED') {
+        playSound('completed');
+      }
+
+      // 3. Check for new previews
+      const currentPreviewsCount = order.previews?.length || 0;
+      // We only want to play the preview sound if there's a new preview AND it's not the first load
+      // To avoid playing it on initial load if previews already exist, check if previousStatusRef is set
+      if (previousStatusRef.current !== null && currentPreviewsCount > previousPreviewsLengthRef.current) {
+        playSound('preview');
+      }
+
+      previousStatusRef.current = order.status;
+      previousPreviewsLengthRef.current = currentPreviewsCount;
+    }
+  }, [order]);
 
   useEffect(() => {
     fetchOrder();

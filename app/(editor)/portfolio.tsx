@@ -1,169 +1,213 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Image, ActivityIndicator, StatusBar, Alert,
-} from 'react-native';
-import { Plus, Play, Trash2, Edit3, Eye, AlertCircle, Heart, Film, ArrowLeft } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { authService } from '../../src/services/api';
-import Animated, { FadeInUp } from 'react-native-reanimated';
+import { ChevronLeft, Plus, Video, Play, Trash2, Edit3, Heart } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import api from '../../src/services/api';
 
-const CAT_COLORS = ['#EDE7F6', '#E3F2FD', '#E8F5E9', '#FFF3E0'];
-
-export default function PortfolioScreen() {
+export default function EditorPortfolioScreen() {
   const router = useRouter();
-  const [portfolio, setPortfolio] = useState<any[]>([]);
+  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [addingItem, setAddingItem] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newCategory, setNewCategory] = useState('');
 
-  useEffect(() => { fetchPortfolio(); }, []);
+  useEffect(() => {
+    fetchProfile();
+  }, []);
 
-  const fetchPortfolio = async () => {
+  const fetchProfile = async () => {
     try {
       setLoading(true);
-      const user = await authService.getMe();
-      setPortfolio(user.editorProfile?.portfolio || []);
-    } catch (error) {
-      console.error('[Portfolio] Fetch Error:', error);
+      const res = await api.get('/editor/profile');
+      setProfile(res.data.editor);
+    } catch (e) {
+      console.log('Error fetching portfolio', e);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleAddItem = async () => {
+    if (!newTitle || !newCategory) {
+      Alert.alert('Missing Fields', 'Please add a title and category.');
+      return;
+    }
+    
+    try {
+      setAddingItem(true);
+      // Simulating a video upload, we just pass mock URLs for this demo
+      await api.post('/editor/portfolio', {
+        title: newTitle,
+        category: newCategory,
+        videoUrl: 'https://example.com/demo-video.mp4',
+        thumbnailUrl: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=400',
+      });
+      
+      setNewTitle('');
+      setNewCategory('');
+      fetchProfile();
+    } catch (e: any) {
+      Alert.alert('Error', e.response?.data?.message || 'Failed to add portfolio item');
+    } finally {
+      setAddingItem(false);
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    Alert.alert(
+      'Delete Portfolio Item',
+      'Are you sure you want to delete this video?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/editor/portfolio/${id}`);
+              fetchProfile();
+            } catch (e) {
+              Alert.alert('Error', 'Failed to delete item');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={s.centerContainer}>
         <ActivityIndicator size="large" color="#4F46E5" />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#4F46E5" />
-
-      {/* Header */}
-      <LinearGradient colors={['#4F46E5', '#7C3AED']} style={styles.header}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <ArrowLeft size={22} color="#FFF" />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Text style={styles.title}>Showcase</Text>
-            <Text style={styles.subtitle}>Your best work on display</Text>
-          </View>
-          <TouchableOpacity style={styles.addBtn}>
-            <Plus size={20} color="#4F46E5" />
-          </TouchableOpacity>
-        </View>
+    <View style={s.container}>
+      <LinearGradient colors={['#4F46E5', '#7C3AED']} style={s.header}>
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+          <ChevronLeft size={24} color="#FFF" />
+        </TouchableOpacity>
+        <Text style={s.title}>My Portfolio</Text>
+        <View style={{width: 24}} />
       </LinearGradient>
 
-      <FlatList
-        data={portfolio}
-        keyExtractor={item => item.id}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <View style={styles.emptyIconCircle}>
-              <Film size={36} color="#4F46E5" />
-            </View>
-            <Text style={styles.emptyTitle}>Empty Showcase</Text>
-            <Text style={styles.emptySubtitle}>Upload your past edits or reels here to stand out to premium clients.</Text>
-            <TouchableOpacity style={styles.addInitialBtn}>
-              <Text style={styles.addInitialText}>Upload Now</Text>
-            </TouchableOpacity>
+      <ScrollView style={s.body} contentContainerStyle={{paddingBottom: 40}}>
+        {/* Editor Stats Header */}
+        <View style={s.statsCard}>
+          <View style={s.statBox}>
+            <Text style={s.statVal}>{profile?.portfolio?.length || 0}</Text>
+            <Text style={s.statLabel}>Projects</Text>
           </View>
-        }
-        renderItem={({ item, index }) => {
-          const pastBg = CAT_COLORS[index % CAT_COLORS.length];
-          return (
-            <Animated.View entering={FadeInUp.delay(index * 60)} style={styles.card}>
-              <View style={styles.imageWrap}>
-                {item.thumbnailUrl ? (
-                  <Image source={{ uri: item.thumbnailUrl }} style={StyleSheet.absoluteFill} />
-                ) : (
-                  <LinearGradient colors={['#EDE7F6', '#E8F5E9']} style={StyleSheet.absoluteFill} />
-                )}
-                <View style={styles.playOverlay}>
-                  <View style={styles.playCircle}>
-                    <Play size={20} color="#4F46E5" fill="#4F46E5" />
-                  </View>
-                </View>
-                <View style={[styles.badge, { backgroundColor: pastBg }]}>
-                  <Text style={styles.badgeText}>{item.category || 'REEL'}</Text>
-                </View>
-              </View>
+          <View style={s.divider} />
+          <View style={s.statBox}>
+            <Text style={s.statVal}>{profile?.rating || '0.0'} ★</Text>
+            <Text style={s.statLabel}>Avg Rating</Text>
+          </View>
+          <View style={s.divider} />
+          <View style={s.statBox}>
+            <Text style={s.statVal}>{profile?.totalOrders || 0}</Text>
+            <Text style={s.statLabel}>Orders Done</Text>
+          </View>
+        </View>
 
-              <View style={styles.cardInfo}>
-                <Text style={styles.itemTitle}>{item.title}</Text>
-                <View style={styles.statsRow}>
-                  <View style={styles.statItem}>
-                    <Eye size={13} color="#94A3B8" />
-                    <Text style={styles.statVal}>{item.views || 0}</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <Heart size={13} color="#EF4444" fill="#EF4444" />
-                    <Text style={styles.statVal}>{item.likes || 0}</Text>
-                  </View>
+        {/* Add New Item */}
+        <View style={s.addCard}>
+          <Text style={s.sectionTitle}>Add New Showcase</Text>
+          <TextInput 
+            style={s.input} 
+            placeholder="Project Title (e.g., Cyberpunk Vlog Edit)" 
+            value={newTitle}
+            onChangeText={setNewTitle}
+          />
+          <TextInput 
+            style={s.input} 
+            placeholder="Category (e.g., Gaming, Vlogs, Real Estate)" 
+            value={newCategory}
+            onChangeText={setNewCategory}
+          />
+          
+          <TouchableOpacity style={s.uploadBox}>
+            <Video size={24} color="#64748B" />
+            <Text style={s.uploadText}>Select Video File</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={s.submitBtn} 
+            onPress={handleAddItem}
+            disabled={addingItem}
+          >
+            {addingItem ? <ActivityIndicator color="#FFF" /> : <Text style={s.submitBtnText}>Upload to Portfolio</Text>}
+          </TouchableOpacity>
+        </View>
+
+        <Text style={[s.sectionTitle, {marginTop: 16, marginBottom: 12}]}>Showcase Gallery</Text>
+        
+        {/* Portfolio Grid */}
+        <View style={s.grid}>
+          {profile?.portfolio?.length === 0 && (
+            <Text style={s.emptyText}>Your portfolio is empty. Upload your best edits to attract more customers!</Text>
+          )}
+          
+          {profile?.portfolio?.map((item: any) => (
+            <View key={item.id} style={s.portfolioItem}>
+              <View style={s.imageContainer}>
+                <Image source={{uri: item.thumbnail}} style={s.thumbnail} />
+                <View style={s.playBtn}>
+                  <Play size={20} color="#FFF" fill="#FFF" style={{marginLeft: 3}} />
+                </View>
+                <TouchableOpacity style={s.deleteBtn} onPress={() => handleDelete(item.id)}>
+                  <Trash2 size={16} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+              <View style={s.itemInfo}>
+                <Text style={s.itemTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={s.itemCategory}>{item.category}</Text>
+                <View style={s.likeRow}>
+                  <Heart size={14} color="#F43F5E" />
+                  <Text style={s.likeText}>{item.likes} Likes</Text>
                 </View>
               </View>
-
-              <View style={styles.cardActions}>
-                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#F1F5F9' }]}>
-                  <Edit3 size={16} color="#64748B" />
-                  <Text style={styles.actionBtnText}>Edit</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#FEF2F2' }]}>
-                  <Trash2 size={16} color="#EF4444" />
-                  <Text style={[styles.actionBtnText, { color: '#EF4444' }]}>Delete</Text>
-                </TouchableOpacity>
-              </View>
-            </Animated.View>
-          );
-        }}
-      />
+            </View>
+          ))}
+        </View>
+      </ScrollView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
-
-  header: { paddingTop: 58, paddingHorizontal: 20, paddingBottom: 24, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  backBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  headerCenter: { alignItems: 'center' },
-  title: { fontSize: 20, fontWeight: '900', color: '#FFF' },
-  subtitle: { fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: '600', marginTop: 2 },
-  addBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center' },
-
-  list: { padding: 20, paddingBottom: 60 },
-  card: {
-    backgroundColor: '#FFF', borderRadius: 24, overflow: 'hidden', marginBottom: 20,
-    elevation: 2, shadowColor: '#4F46E5', shadowOpacity: 0.05, shadowRadius: 10,
-  },
-  imageWrap: { height: 180, width: '100%', position: 'relative' },
-  playOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)', alignItems: 'center', justifyContent: 'center' },
-  playCircle: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center', elevation: 4 },
-  badge: { position: 'absolute', top: 12, right: 12, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 },
-  badgeText: { fontSize: 10, fontWeight: '900', color: '#1E293B', letterSpacing: 0.5 },
-
-  cardInfo: { padding: 16 },
-  itemTitle: { fontSize: 16, fontWeight: '800', color: '#1E293B' },
-  statsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 14 },
-  statItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  statVal: { fontSize: 12, color: '#64748B', fontWeight: '800' },
-
-  cardActions: { flexDirection: 'row', paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
-  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 12, gap: 6 },
-  actionBtnText: { fontSize: 12, fontWeight: '800', color: '#64748B' },
-
-  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, paddingHorizontal: 20 },
-  emptyIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#EDE7F6', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  emptyTitle: { fontSize: 20, fontWeight: '900', color: '#1E293B' },
-  emptySubtitle: { fontSize: 13, color: '#94A3B8', textAlign: 'center', marginTop: 8, lineHeight: 20, fontWeight: '600' },
-  addInitialBtn: { marginTop: 24, backgroundColor: '#EDE7F6', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 14 },
-  addInitialText: { color: '#4F46E5', fontWeight: '900', fontSize: 13 },
+  centerContainer: { flex: 1, backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
+  header: { paddingTop: 60, paddingBottom: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title: { fontSize: 18, fontWeight: '800', color: '#FFF' },
+  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  body: { padding: 20 },
+  statsCard: { flexDirection: 'row', backgroundColor: '#FFF', borderRadius: 16, padding: 20, marginBottom: 24, elevation: 2, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.05, shadowRadius: 4 },
+  statBox: { flex: 1, alignItems: 'center' },
+  statVal: { fontSize: 22, fontWeight: '900', color: '#1E293B', marginBottom: 4 },
+  statLabel: { fontSize: 13, color: '#64748B', fontWeight: '600' },
+  divider: { width: 1, backgroundColor: '#F1F5F9', marginHorizontal: 12 },
+  addCard: { backgroundColor: '#FFF', borderRadius: 16, padding: 20, marginBottom: 24, borderWidth: 1, borderColor: '#E2E8F0' },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#1E293B', marginBottom: 16 },
+  input: { backgroundColor: '#F8FAFC', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12, fontSize: 15 },
+  uploadBox: { height: 100, backgroundColor: '#F8FAFC', borderRadius: 12, borderWidth: 2, borderColor: '#E2E8F0', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', marginBottom: 16, gap: 8 },
+  uploadText: { color: '#64748B', fontWeight: '600' },
+  submitBtn: { backgroundColor: '#4F46E5', padding: 16, borderRadius: 12, alignItems: 'center' },
+  submitBtnText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
+  emptyText: { color: '#64748B', textAlign: 'center', paddingVertical: 24, lineHeight: 22, width: '100%' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  portfolioItem: { width: '48%', backgroundColor: '#FFF', borderRadius: 16, marginBottom: 16, overflow: 'hidden', elevation: 1 },
+  imageContainer: { width: '100%', height: 140, position: 'relative' },
+  thumbnail: { width: '100%', height: '100%', resizeMode: 'cover' },
+  playBtn: { position: 'absolute', top: '50%', left: '50%', marginTop: -20, marginLeft: -20, width: 40, height: 40, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  deleteBtn: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(220, 38, 38, 0.9)', width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  itemInfo: { padding: 12 },
+  itemTitle: { fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 4 },
+  itemCategory: { fontSize: 12, color: '#64748B', marginBottom: 8 },
+  likeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  likeText: { fontSize: 12, color: '#F43F5E', fontWeight: '600' }
 });

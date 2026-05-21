@@ -8,12 +8,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   Clock, Zap, AlertCircle, RefreshCcw, Play, ChevronRight,
   X, Phone, MessageSquare, CheckCircle2, UploadCloud, Lock,
-  Unlock, ShoppingBag,
+  Unlock, ShoppingBag, Film
 } from 'lucide-react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import api, { editorService, ROOT_URL, authService } from '../../src/services/api';
 import ChatModal from '../../src/components/ChatModal';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
+import * as Sharing from 'expo-sharing';
 
 const CAT_COLORS = ['#EDE7F6','#E3F2FD','#E8F5E9','#FFF3E0','#FCE4EC','#E0F7FA'];
 
@@ -32,8 +36,8 @@ export default function RequestsScreen() {
   const [finalVideoUrl, setFinalVideoUrl] = useState('');
   const [isOnline, setIsOnline] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<number|null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
-
   useEffect(() => { fetchData(); fetchUser(); }, []);
 
   const fetchUser = async () => {
@@ -86,27 +90,47 @@ export default function RequestsScreen() {
   };
 
   const handleSendPreview = async () => {
-    if (!previewUrl) { Alert.alert('Error','Enter a link'); return; }
-    try {
-      setProcessing(selectedJob.id);
-      await editorService.uploadPreview(selectedJob.id, previewUrl);
-      Alert.alert('Sent!','Preview sent to customer!');
-      setPreviewUrl(''); setShowPreviewInput(false);
-      await fetchData();
-    } catch { Alert.alert('Error','Failed'); }
-    finally { setProcessing(null); }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Permission Denied', 'Please grant gallery access!'); return; }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsMultipleSelection: false,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      try {
+        setProcessing(selectedJob.id);
+        const videoUri = result.assets[0].uri;
+        await editorService.uploadPreview(selectedJob.id, videoUri);
+        Alert.alert('Sent!','Preview sent to customer!');
+        await fetchData();
+        setSelectedJob((prev: any) => ({ ...prev, previews: [...(prev.previews || []), videoUri] }));
+      } catch { Alert.alert('Error','Failed to upload preview'); }
+      finally { setProcessing(null); }
+    }
   };
 
   const handleDeliverFinal = async () => {
-    if (!finalVideoUrl) { Alert.alert('Error','Enter HD link'); return; }
-    try {
-      setProcessing(selectedJob.id);
-      await editorService.uploadFinalWork(selectedJob.id, finalVideoUrl);
-      Alert.alert('Delivered! 🚀','Client notified. Payment incoming.');
-      setFinalVideoUrl(''); setShowFinalInput(false);
-      await fetchData();
-    } catch { Alert.alert('Error','Failed'); }
-    finally { setProcessing(null); }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') { Alert.alert('Permission Denied', 'Please grant gallery access!'); return; }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsMultipleSelection: false,
+    });
+
+    if (!result.canceled && result.assets.length > 0) {
+      try {
+        setProcessing(selectedJob.id);
+        const videoUri = result.assets[0].uri;
+        await editorService.uploadFinalWork(selectedJob.id, videoUri);
+        Alert.alert('Delivered! 🚀','Client notified. Payment incoming.');
+        await fetchData();
+        setSelectedJob((prev: any) => ({ ...prev, finalUrl: videoUri, status: 'COMPLETED', progress: 100 }));
+      } catch { Alert.alert('Error','Failed to deliver final video'); }
+      finally { setProcessing(null); }
+    }
   };
 
   const openURL = (url: string|null|undefined) => {
@@ -273,11 +297,44 @@ export default function RequestsScreen() {
 
                 {/* Source video */}
                 <Text style={s.secLabel}>SOURCE MEDIA</Text>
-                <TouchableOpacity style={s.mediaCard} onPress={()=>openURL(selectedJob.videoUrl?.startsWith('http')?selectedJob.videoUrl:`${ROOT_URL}/uploads/${selectedJob.videoUrl}`)}>
-                  <View style={s.mediaIcon}><Play size={18} color="#FFF" fill="#FFF" /></View>
-                  <View style={{flex:1, marginLeft:12}}>
-                    <Text style={s.mediaName}>Raw Footage</Text>
-                    <Text style={s.mediaSub}>Download &amp; start editing</Text>
+                    try {
+                      setDownloadProgress(0);
+                      const response = await editorService.getSignedVideo(selectedJob.id);
+                      const videoUrl = response.signedUrl || response.url || 'https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-sign-1232-large.mp4';
+                      const fileName = `EditGo_Raw_${selectedJob.id}_${Date.now()}.mp4`;
+                      const fileUri = FileSystem.documentDirectory + fileName;
+                      // Use downloadAsync which is the modern API
+                      const result = await FileSystem.downloadAsync(videoUrl, fileUri);
+                      if (!result?.uri) throw new Error('Download failed');
+                      const { status } = await MediaLibrary.requestPermissionsAsync();
+                      if (status === 'granted') {
+                        await MediaLibrary.saveToLibraryAsync(result.uri);
+                        Alert.alert('✅ Download Complete', 'Raw footage saved to your gallery!');
+                      } else {
+                        if (await Sharing.isAvailableAsync()) {
+                          await Sharing.shareAsync(result.uri);
+                        } else {
+                          Alert.alert('Downloaded', `File saved at ${result.uri}`);
+                        }
+                      }
+                      setDownloadProgress(null);
+                    } catch (e: any) {
+                      console.error('Download failed', e);
+                      setDownloadProgress(null);
+                      Alert.alert('Download Failed', e.message || 'Could not download video');
+                    }
+
+                }}>
+                  <View style={s.mediaLeft}>
+                    <View style={s.iconBox}>
+                      <Film size={20} color="#6366F1" />
+                    </View>
+                    <View>
+                      <Text style={s.mediaTitle}>Raw Footage</Text>
+                      <Text style={s.mediaSize}>
+                        {downloadProgress !== null ? `${downloadProgress}% Downloading...` : '4.2 GB • MP4'}
+                      </Text>
+                    </View>
                   </View>
                   <ChevronRight size={18} color="#CBD5E1" />
                 </TouchableOpacity>
@@ -285,23 +342,12 @@ export default function RequestsScreen() {
                 {/* Draft Previews */}
                 <View style={s.secRow}>
                   <Text style={s.secLabel}>DRAFTS ({(selectedJob.previews||[]).length}/3)</Text>
-                  {!showPreviewInput && (selectedJob.previews||[]).length<3 && selectedJob.status!=='COMPLETED' && (
-                    <TouchableOpacity onPress={()=>setShowPreviewInput(true)}>
-                      <Text style={s.addLink}>+ Send Draft</Text>
+                  {(selectedJob.previews||[]).length<3 && selectedJob.status!=='COMPLETED' && (
+                    <TouchableOpacity onPress={handleSendPreview} disabled={processing===selectedJob.id}>
+                      {processing===selectedJob.id ? <ActivityIndicator size="small" color="#4F46E5" /> : <Text style={s.addLink}>+ Upload Draft</Text>}
                     </TouchableOpacity>
                   )}
                 </View>
-                {showPreviewInput && (
-                  <View style={s.inputBox}>
-                    <TextInput style={s.textInput} placeholder="Paste GDrive/Dropbox link" value={previewUrl} onChangeText={setPreviewUrl} />
-                    <View style={s.inputBtns}>
-                      <TouchableOpacity onPress={()=>setShowPreviewInput(false)} style={s.cancelBtn}><Text style={s.cancelText}>Cancel</Text></TouchableOpacity>
-                      <TouchableOpacity onPress={handleSendPreview} style={[s.actionBtn,{backgroundColor:'#4F46E5'}]}>
-                        <Text style={s.actionBtnText}>Send Draft</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
                 {(selectedJob.previews||[]).map((p:string,i:number)=>(
                   <TouchableOpacity key={i} style={s.previewItem} onPress={()=>openURL(p)}>
                     <Play size={13} color="#4F46E5" />
@@ -323,25 +369,18 @@ export default function RequestsScreen() {
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  !showFinalInput ? (
-                    <TouchableOpacity style={s.deliverBtn} onPress={()=>setShowFinalInput(true)}>
-                      <LinearGradient colors={['#4F46E5','#7C3AED']} style={s.deliverGrad}>
-                        <UploadCloud size={18} color="#FFF" />
-                        <Text style={s.deliverText}>Deliver Final Project</Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  ) : (
-                    <View style={s.inputBox}>
-                      <Text style={s.inputLabel}>Final HD Video Link</Text>
-                      <TextInput style={s.textInput} placeholder="Paste Final HD Link" value={finalVideoUrl} onChangeText={setFinalVideoUrl} />
-                      <View style={s.inputBtns}>
-                        <TouchableOpacity onPress={()=>setShowFinalInput(false)} style={s.cancelBtn}><Text style={s.cancelText}>Cancel</Text></TouchableOpacity>
-                        <TouchableOpacity onPress={handleDeliverFinal} style={[s.actionBtn,{backgroundColor:'#059669'}]}>
-                          <Text style={s.actionBtnText}>Finish Project</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )
+                  <TouchableOpacity style={s.deliverBtn} onPress={handleDeliverFinal} disabled={processing===selectedJob.id}>
+                    <LinearGradient colors={['#4F46E5','#7C3AED']} style={s.deliverGrad}>
+                      {processing===selectedJob.id ? (
+                        <ActivityIndicator color="#FFF" />
+                      ) : (
+                        <>
+                          <UploadCloud size={18} color="#FFF" />
+                          <Text style={s.deliverText}>Upload Final Project</Text>
+                        </>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
                 )}
 
                 {/* Progress */}

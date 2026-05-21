@@ -31,12 +31,34 @@ const FALLBACK_URL = 'https://editgoapp.onrender.com/api';
 
 export let BASE_URL = 'https://editgoapp.onrender.com/api';
 
-// Initialize BASE_URL from SecureStore if available
+// Initialize BASE_URL dynamically
 export const initBaseUrl = async () => {
-  const FORCED_IP = 'https://editgoapp.onrender.com/api';
-  console.log('[API] Setting Production Backend URL:', FORCED_IP);
-  BASE_URL = FORCED_IP;
-  api.defaults.baseURL = FORCED_IP;
+  try {
+    const savedUrl = await SecureStore.getItemAsync('server_url');
+    if (savedUrl) {
+      console.log('[API] Using Saved Server URL:', savedUrl);
+      BASE_URL = savedUrl;
+      api.defaults.baseURL = savedUrl;
+      return;
+    }
+  } catch (err) {
+    console.log('[API] Error reading saved server_url:', err);
+  }
+
+  // Detect local debugger IP
+  const debugHost = getDebuggerHost();
+  if (debugHost) {
+    console.log('[API] Setting Dev Host URL:', debugHost);
+    BASE_URL = debugHost;
+    api.defaults.baseURL = debugHost;
+    return;
+  }
+
+  // Standard Emulator Loopback fallback based on platform
+  const localIp = Platform.OS === 'android' ? 'http://10.0.2.2:8000/api' : 'http://localhost:8000/api';
+  console.log('[API] Setting Local Dev fallback:', localIp);
+  BASE_URL = localIp;
+  api.defaults.baseURL = localIp;
 };
 
 const api = axios.create({
@@ -153,6 +175,10 @@ export const orderService = {
 export const ROOT_URL = BASE_URL.replace('/api', '');
 
 export const editorService = {
+  getAvailableOrders: async () => {
+    const response = await api.get('/orders/available');
+    return response.data;
+  },
   getAssignedOrders: async () => {
     const response = await api.get('/orders/my');
     return response.data;
@@ -172,6 +198,10 @@ export const editorService = {
   toggleOnline: async (isOnline: boolean) => {
     // This would ideally be a separate endpoint, but for now we can use a generic profile update
     const response = await api.post('/auth/update-profile', { isOnline });
+    return response.data;
+  },
+  getSignedVideo: async (orderId: string) => {
+    const response = await api.get(`/orders/${orderId}/video-signed`);
     return response.data;
   }
 };

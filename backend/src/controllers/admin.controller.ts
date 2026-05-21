@@ -204,3 +204,98 @@ export const getRevenueData = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Error fetching revenue data', error: error.message });
   }
 };
+
+// --- SECURITY & TRUST MANAGEMENT ---
+
+export const getPendingKYC = async (req: Request, res: Response) => {
+  try {
+    const pendingEditors = await prisma.editor.findMany({
+      where: { verificationStatus: 'PENDING' },
+      include: { user: { select: { name: true, email: true, phone: true } } },
+      orderBy: { user: { createdAt: 'desc' } }
+    });
+    res.status(200).json({ success: true, data: pendingEditors });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Error fetching pending KYC', error: error.message });
+  }
+};
+
+export const updateKYCStatus = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body; // 'APPROVED' or 'REJECTED'
+
+    if (!['APPROVED', 'REJECTED'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+
+    const updatedEditor = await prisma.editor.update({
+      where: { id: id as string },
+      data: {
+        verificationStatus: status as any,
+        isVerified: status === 'APPROVED',
+        verifiedAt: status === 'APPROVED' ? new Date() : null,
+      }
+    });
+
+    res.status(200).json({ success: true, data: updatedEditor });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Error updating KYC', error: error.message });
+  }
+};
+
+export const getViolations = async (req: Request, res: Response) => {
+  try {
+    const violations = await prisma.violationReport.findMany({
+      include: {
+        editor: { include: { user: { select: { name: true, email: true } } } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.status(200).json({ success: true, data: violations });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Error fetching violations', error: error.message });
+  }
+};
+
+export const updateViolationStatus = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, adminNotes, suspendEditor } = req.body;
+
+    const violation = await prisma.violationReport.update({
+      where: { id: id as string },
+      data: { status, adminNotes }
+    });
+
+    if (suspendEditor) {
+      await prisma.editor.update({
+        where: { id: violation.editorId },
+        data: { 
+          isSuspended: true,
+          verificationStatus: 'SUSPENDED',
+          suspensionReason: `Suspended due to violation report #${id}`
+        }
+      });
+    }
+
+    res.status(200).json({ success: true, data: violation });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Error updating violation', error: error.message });
+  }
+};
+
+export const getFileAccessLogs = async (req: Request, res: Response) => {
+  try {
+    const logs = await prisma.fileAccessLog.findMany({
+      include: {
+        editor: { include: { user: { select: { name: true } } } }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100 // Limit to recent 100 for performance
+    });
+    res.status(200).json({ success: true, data: logs });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Error fetching access logs', error: error.message });
+  }
+};
