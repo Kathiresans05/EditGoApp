@@ -25,26 +25,14 @@ const getDebuggerHost = () => {
   return url;
 };
 
-const DEFAULT_ANDROID_URL = 'https://editgoapp.onrender.com/api';
-const DETECTED_URL = 'https://editgoapp.onrender.com/api';
-const FALLBACK_URL = 'https://editgoapp.onrender.com/api';
+const DEFAULT_ANDROID_URL = 'http://192.168.1.5:8000/api';
+const DETECTED_URL = 'http://192.168.1.5:8000/api';
+const FALLBACK_URL = 'http://192.168.1.5:8000/api';
 
-export let BASE_URL = 'https://editgoapp.onrender.com/api';
+export let BASE_URL = 'http://192.168.1.5:8000/api';
 
 // Initialize BASE_URL dynamically
 export const initBaseUrl = async () => {
-  try {
-    const savedUrl = await SecureStore.getItemAsync('server_url');
-    if (savedUrl) {
-      console.log('[API] Using Saved Server URL:', savedUrl);
-      BASE_URL = savedUrl;
-      api.defaults.baseURL = savedUrl;
-      return;
-    }
-  } catch (err) {
-    console.log('[API] Error reading saved server_url:', err);
-  }
-
   // Detect local debugger IP
   const debugHost = getDebuggerHost();
   if (debugHost) {
@@ -55,7 +43,7 @@ export const initBaseUrl = async () => {
   }
 
   // Standard Emulator Loopback fallback based on platform
-  const localIp = Platform.OS === 'android' ? 'http://10.0.2.2:8000/api' : 'http://localhost:8000/api';
+  const localIp = 'http://192.168.1.19:8000/api';
   console.log('[API] Setting Local Dev fallback:', localIp);
   BASE_URL = localIp;
   api.defaults.baseURL = localIp;
@@ -169,6 +157,23 @@ export const orderService = {
   processPayment: async (orderId: string, paymentId: string) => {
     const response = await api.patch(`/orders/${orderId}/status`, { isPaid: true, paymentId });
     return response.data;
+  },
+  uploadVideo: async (orderId: string, fileUri: string) => {
+    const formData = new FormData();
+    const filename = fileUri.split('/').pop() || 'video.mp4';
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `video/${match[1]}` : `video/mp4`;
+    
+    formData.append('video', {
+      uri: fileUri,
+      name: filename,
+      type,
+    } as any);
+
+    const response = await api.post(`/orders/${orderId}/video`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
   }
 };
 
@@ -187,12 +192,38 @@ export const editorService = {
     const response = await api.patch(`/orders/${orderId}/status`, { status, progress });
     return response.data;
   },
-  uploadPreview: async (orderId: string, previewUrl: string) => {
-    const response = await api.post(`/orders/${orderId}/previews`, { previewUrl });
+  uploadPreview: async (orderId: string, fileUri: string) => {
+    const formData = new FormData();
+    const filename = fileUri.split('/').pop() || 'preview.mp4';
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `video/${match[1]}` : `video/mp4`;
+    
+    formData.append('video', {
+      uri: fileUri,
+      name: filename,
+      type,
+    } as any);
+
+    const response = await api.post(`/orders/${orderId}/previews`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
     return response.data;
   },
-  uploadFinalWork: async (orderId: string, finalUrl: string) => {
-    const response = await api.patch(`/orders/${orderId}/status`, { finalUrl, status: 'COMPLETED', progress: 100 });
+  uploadFinalWork: async (orderId: string, fileUri: string) => {
+    const formData = new FormData();
+    const filename = fileUri.split('/').pop() || 'final.mp4';
+    const match = /\.(\w+)$/.exec(filename);
+    const type = match ? `video/${match[1]}` : `video/mp4`;
+    
+    formData.append('video', {
+      uri: fileUri,
+      name: filename,
+      type,
+    } as any);
+
+    const response = await api.post(`/orders/${orderId}/final`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
     return response.data;
   },
   toggleOnline: async (isOnline: boolean) => {
@@ -202,6 +233,10 @@ export const editorService = {
   },
   getSignedVideo: async (orderId: string) => {
     const response = await api.get(`/orders/${orderId}/video-signed`);
+    return response.data;
+  },
+  cancelOrder: async (orderId: string) => {
+    const response = await api.post(`/orders/${orderId}/cancel`);
     return response.data;
   }
 };
@@ -217,6 +252,10 @@ export const customerService = {
   },
   addFunds: async (amount: number) => {
     const response = await api.post('/customer/add-funds', { amount });
+    return response.data;
+  },
+  submitReview: async (orderId: string, rating: number, comment: string) => {
+    const response = await api.post(`/orders/${orderId}/review`, { rating, comment });
     return response.data;
   },
 };

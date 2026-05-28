@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput, Alert, ActivityIndicator, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronLeft, Plus, Video, Play, Trash2, Edit3, Heart } from 'lucide-react-native';
+import { ChevronLeft, Plus, Video as VideoIcon, Play, Trash2, Edit3, Heart, Check, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { Video, ResizeMode } from 'expo-av';
 import api from '../../src/services/api';
 
 export default function EditorPortfolioScreen() {
@@ -12,10 +14,22 @@ export default function EditorPortfolioScreen() {
   const [addingItem, setAddingItem] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState('');
+  const [selectedVideo, setSelectedVideo] = useState<any>(null);
+  
+  const [videoModalVisible, setVideoModalVisible] = useState(false);
+  const [selectedPlayUrl, setSelectedPlayUrl] = useState('');
+  const [selectedPlayTitle, setSelectedPlayTitle] = useState('');
 
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  const optimizeUrl = (url: string) => {
+    if (url && url.includes('cloudinary.com') && !url.includes('q_auto')) {
+      return url.replace('/upload/', '/upload/q_auto,f_auto/');
+    }
+    return url;
+  };
 
   const fetchProfile = async () => {
     try {
@@ -29,25 +43,54 @@ export default function EditorPortfolioScreen() {
     }
   };
 
+  const handleSelectVideo = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['videos'],
+        allowsEditing: false,
+        quality: 1,
+      });
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setSelectedVideo(result.assets[0]);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to pick video');
+    }
+  };
+
   const handleAddItem = async () => {
-    if (!newTitle || !newCategory) {
-      Alert.alert('Missing Fields', 'Please add a title and category.');
+    if (!newTitle || !newCategory || !selectedVideo) {
+      Alert.alert('Missing Fields', 'Please add a title, category, and select a video.');
       return;
     }
     
     try {
       setAddingItem(true);
-      // Simulating a video upload, we just pass mock URLs for this demo
-      await api.post('/editor/portfolio', {
-        title: newTitle,
-        category: newCategory,
-        videoUrl: 'https://example.com/demo-video.mp4',
-        thumbnailUrl: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=400',
+      
+      const formData = new FormData() as any;
+      formData.append('title', newTitle);
+      formData.append('category', newCategory);
+      
+      // Get filename from URI
+      const uriParts = selectedVideo.uri.split('/');
+      let fileName = uriParts[uriParts.length - 1];
+      if (!fileName.includes('.')) fileName += '.mp4'; // Fallback extension
+      
+      formData.append('video', {
+        uri: selectedVideo.uri,
+        name: fileName,
+        type: 'video/mp4'
+      });
+
+      await api.post('/editor/portfolio', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
       
       setNewTitle('');
       setNewCategory('');
+      setSelectedVideo(null);
       fetchProfile();
+      Alert.alert('Success', 'Portfolio item uploaded successfully!');
     } catch (e: any) {
       Alert.alert('Error', e.response?.data?.message || 'Failed to add portfolio item');
     } finally {
@@ -130,9 +173,18 @@ export default function EditorPortfolioScreen() {
             onChangeText={setNewCategory}
           />
           
-          <TouchableOpacity style={s.uploadBox}>
-            <Video size={24} color="#64748B" />
-            <Text style={s.uploadText}>Select Video File</Text>
+          <TouchableOpacity style={[s.uploadBox, selectedVideo && { borderColor: '#4F46E5', backgroundColor: '#EEF2FF' }]} onPress={handleSelectVideo}>
+            {selectedVideo ? (
+              <>
+                <Check size={24} color="#4F46E5" />
+                <Text style={[s.uploadText, { color: '#4F46E5' }]}>Video Selected</Text>
+              </>
+            ) : (
+              <>
+                <VideoIcon size={24} color="#64748B" />
+                <Text style={s.uploadText}>Select Video File</Text>
+              </>
+            )}
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -152,17 +204,41 @@ export default function EditorPortfolioScreen() {
             <Text style={s.emptyText}>Your portfolio is empty. Upload your best edits to attract more customers!</Text>
           )}
           
-          {profile?.portfolio?.map((item: any) => (
+          {profile?.portfolio?.map((item: any, index: number) => {
+            const colors = [
+              ['#4F46E5', '#7C3AED'],
+              ['#F43F5E', '#E11D48'],
+              ['#10B981', '#059669'],
+              ['#F59E0B', '#D97706'],
+              ['#3B82F6', '#2563EB']
+            ];
+            const itemGradient = colors[index % colors.length];
+
+            return (
             <View key={item.id} style={s.portfolioItem}>
-              <View style={s.imageContainer}>
-                <Image source={{uri: item.thumbnail}} style={s.thumbnail} />
+              <TouchableOpacity 
+                style={s.imageContainer} 
+                onPress={() => {
+                  setSelectedPlayTitle(item.title);
+                  setSelectedPlayUrl(optimizeUrl(item.videoUrl));
+                  setVideoModalVisible(true);
+                }}
+              >
+                {item.thumbnail && !item.thumbnail.includes('unsplash') ? (
+                  <Image source={{uri: item.thumbnail}} style={s.thumbnail} />
+                ) : (
+                  <LinearGradient colors={itemGradient} style={s.thumbnailPlaceholder}>
+                    <VideoIcon size={32} color="rgba(255,255,255,0.4)" />
+                  </LinearGradient>
+                )}
+                
                 <View style={s.playBtn}>
                   <Play size={20} color="#FFF" fill="#FFF" style={{marginLeft: 3}} />
                 </View>
                 <TouchableOpacity style={s.deleteBtn} onPress={() => handleDelete(item.id)}>
                   <Trash2 size={16} color="#FFF" />
                 </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
               <View style={s.itemInfo}>
                 <Text style={s.itemTitle} numberOfLines={1}>{item.title}</Text>
                 <Text style={s.itemCategory}>{item.category}</Text>
@@ -172,9 +248,35 @@ export default function EditorPortfolioScreen() {
                 </View>
               </View>
             </View>
-          ))}
+          )})}
         </View>
       </ScrollView>
+
+      {/* Video Player Modal */}
+      <Modal visible={videoModalVisible} animationType="slide" transparent={true} onRequestClose={() => setVideoModalVisible(false)}>
+        <View style={s.modalBg}>
+          <View style={s.modalHeader}>
+            <Text style={s.modalTitle}>{selectedPlayTitle}</Text>
+            <TouchableOpacity onPress={() => setVideoModalVisible(false)} style={s.modalCloseBtn}>
+              <X size={20} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+          <View style={s.videoContainer}>
+            {selectedPlayUrl ? (
+              <Video
+                source={{ uri: selectedPlayUrl }}
+                style={s.fullVideo}
+                useNativeControls
+                resizeMode={ResizeMode.CONTAIN}
+                isLooping
+                shouldPlay={true}
+              />
+            ) : (
+              <Text style={{ color: '#FFF' }}>Loading video...</Text>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -203,11 +305,18 @@ const s = StyleSheet.create({
   portfolioItem: { width: '48%', backgroundColor: '#FFF', borderRadius: 16, marginBottom: 16, overflow: 'hidden', elevation: 1 },
   imageContainer: { width: '100%', height: 140, position: 'relative' },
   thumbnail: { width: '100%', height: '100%', resizeMode: 'cover' },
+  thumbnailPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
   playBtn: { position: 'absolute', top: '50%', left: '50%', marginTop: -20, marginLeft: -20, width: 40, height: 40, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   deleteBtn: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(220, 38, 38, 0.9)', width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   itemInfo: { padding: 12 },
   itemTitle: { fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 4 },
   itemCategory: { fontSize: 12, color: '#64748B', marginBottom: 8 },
   likeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  likeText: { fontSize: 12, color: '#F43F5E', fontWeight: '600' }
+  likeText: { fontSize: 12, color: '#F43F5E', fontWeight: '600' },
+  modalBg: { flex: 1, backgroundColor: '#0F172A', paddingTop: 60 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 20 },
+  modalTitle: { color: '#FFF', fontSize: 18, fontWeight: '800' },
+  modalCloseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  videoContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
+  fullVideo: { width: '100%', height: '100%' }
 });

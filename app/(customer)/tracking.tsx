@@ -11,12 +11,12 @@ import {
 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { orderService, authService, BASE_URL } from '../../src/services/api';
+import { orderService, authService, customerService, BASE_URL } from '../../src/services/api';
 import ChatModal from '../../src/components/ChatModal';
 import axios from 'axios';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import * as WebBrowser from 'expo-web-browser';
-import { Audio } from 'expo-av';
+import { Audio, Video as ExpoVideo, ResizeMode } from 'expo-av';
 
 export default function TrackingScreen() {
   const router = useRouter();
@@ -37,6 +37,7 @@ export default function TrackingScreen() {
   const [rating, setRating] = useState(5);
   const [reviewText, setReviewText] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [playingPreviewUrl, setPlayingPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const playSound = async (type: 'accept' | 'preview' | 'completed') => {
@@ -246,9 +247,10 @@ export default function TrackingScreen() {
                 <Clock size={12} color="#7C3AED" />
                 <Text style={styles.etaText}>
                   {(() => {
-                    const createdAt = new Date(order.createdAt).getTime();
+                    if (!order.editorId || !order.acceptedAt) return 'Waiting for editor...';
+                    const startTime = new Date(order.acceptedAt).getTime();
                     const initialMins = order.initialETAMins || 45;
-                    const elapsedMins = (new Date().getTime() - createdAt) / (1000 * 60);
+                    const elapsedMins = (new Date().getTime() - startTime) / (1000 * 60);
                     const remaining = Math.max(0, Math.round(initialMins - elapsedMins));
                     return order.progress >= 100 ? 'Delivered' : remaining <= 0 ? 'Any second now!' : `${remaining}m remaining`;
                   })()}
@@ -267,7 +269,10 @@ export default function TrackingScreen() {
             <Animated.View entering={FadeInUp.delay(150)}>
               <Text style={styles.sectionTitle}>Assigned Expert</Text>
               <View style={styles.editorCard}>
-                <View style={styles.editorInfo}>
+                <TouchableOpacity 
+                  style={styles.editorInfo} 
+                  onPress={() => router.push(`/(customer)/editor/${editor.id}`)}
+                >
                   <View style={styles.editorAvatar}>
                     <Text style={styles.avatarText}>{(editor?.user?.name || 'E').substring(0, 2).toUpperCase()}</Text>
                   </View>
@@ -275,7 +280,7 @@ export default function TrackingScreen() {
                     <Text style={styles.editorName}>{editor?.user?.name || 'Expert Editor'}</Text>
                     <Text style={styles.editorRank}>{editor?.level || 'PRO'} EDITOR • 4.9 ★</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
                 <View style={styles.contactActions}>
                   <TouchableOpacity style={[styles.contactBtn, { backgroundColor: '#EDE7F6' }]} onPress={() => setShowChat(true)}>
                     <MessageSquare size={18} color="#7C3AED" />
@@ -298,7 +303,7 @@ export default function TrackingScreen() {
           {(order.previews || []).length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
               {order.previews.map((p: string, i: number) => (
-                <TouchableOpacity key={i} style={styles.previewCard} onPress={() => safeOpenURL(p)}>
+                <TouchableOpacity key={i} style={styles.previewCard} onPress={() => setPlayingPreviewUrl(p)}>
                   <View style={styles.previewThumb}>
                     <Play size={20} color="#FFF" fill="#FFF" />
                   </View>
@@ -521,17 +526,41 @@ export default function TrackingScreen() {
 
             <TouchableOpacity
               style={styles.submitRevBtn}
-              onPress={() => {
+              onPress={async () => {
                 setIsSubmittingReview(true);
-                setTimeout(() => {
-                  setIsSubmittingReview(false);
+                try {
+                  await customerService.submitReview(order.id, rating, reviewText);
                   setShowReview(false);
                   Alert.alert('Thank You! 🙏', 'Your feedback has been delivered to the editor.');
-                }, 1500);
+                } catch (error: any) {
+                  Alert.alert('Error', error.response?.data?.message || 'Failed to submit review');
+                } finally {
+                  setIsSubmittingReview(false);
+                }
               }}
             >
               {isSubmittingReview ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitRevText}>Submit Review</Text>}
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Video Preview Modal */}
+      <Modal visible={!!playingPreviewUrl} animationType="fade" transparent onRequestClose={() => setPlayingPreviewUrl(null)}>
+        <View style={styles.videoModalOverlay}>
+          <View style={styles.videoModalContent}>
+            <TouchableOpacity style={styles.closeVideoBtn} onPress={() => setPlayingPreviewUrl(null)}>
+              <X size={28} color="#FFF" />
+            </TouchableOpacity>
+            {playingPreviewUrl && (
+              <ExpoVideo
+                style={{ width: '100%', height: '50%', backgroundColor: '#000', borderRadius: 16 }}
+                source={{ uri: playingPreviewUrl }}
+                useNativeControls
+                resizeMode={ResizeMode.CONTAIN}
+                shouldPlay
+              />
+            )}
           </View>
         </View>
       </Modal>
@@ -687,4 +716,8 @@ const styles = StyleSheet.create({
   dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 14, gap: 10 },
   dividerLine: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
   dividerText: { fontSize: 10, fontWeight: '800', color: '#94A3B8' },
+
+  videoModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  videoModalContent: { width: '100%', alignItems: 'center', justifyContent: 'center' },
+  closeVideoBtn: { position: 'absolute', top: -50, right: 0, zIndex: 10, padding: 10 },
 });

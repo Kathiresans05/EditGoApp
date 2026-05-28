@@ -89,16 +89,21 @@ export default function RapidStudioScreen() {
   const handleOrder = async () => {
     setIsOrdering(true);
     try {
+      // 1. Create order
       const response = await orderService.createOrder({
         title: `Rapid Edit – ${Math.round(detectedDuration)}s Video`,
         category: 'RAPID',
         price: (totalPrice - discount).toString(),
-        videoUrl: selectedMedia[0].uri,
+        videoUrl: '', // Will be updated after upload
         deliverySpeed: 'RAPID',
         initialETAMins: deliveryTime,
         instructions,
       });
-      if (response.success) {
+
+      if (response.success && response.order?.id) {
+        // 2. Upload video file to Cloudinary via Backend
+        await orderService.uploadVideo(response.order.id, selectedMedia[0].uri);
+        
         router.push({ pathname: '/(customer)/tracking', params: { orderId: response.order.id } });
       }
     } catch (error: any) {

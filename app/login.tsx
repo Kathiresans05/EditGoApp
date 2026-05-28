@@ -46,6 +46,8 @@ export default function LoginScreen() {
       console.log('--- LOGIN SUCCESS ---');
       if (response.user.role === 'ADMIN') {
         router.replace('/(admin)/dashboard');
+      } else if (response.user.role === 'EDITOR') {
+        router.replace('/(editor)/dashboard');
       } else {
         router.replace('/(customer)/home');
       }

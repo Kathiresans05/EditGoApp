@@ -44,7 +44,7 @@ export default function ProfileScreen() {
   const handleSwitchToEditor = async () => {
     if (user?.role === 'EDITOR') {
       await SecureStore.setItemAsync('userRole', 'EDITOR');
-      router.push('/(editor)/requests');
+      router.push('/(editor)/dashboard');
     } else {
       router.push('/become-editor');
     }

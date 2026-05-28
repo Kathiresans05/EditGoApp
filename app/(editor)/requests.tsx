@@ -13,11 +13,13 @@ import {
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import api, { editorService, ROOT_URL, authService } from '../../src/services/api';
 import ChatModal from '../../src/components/ChatModal';
+import LiveStreamModal from '../../src/components/LiveStreamModal';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
+import { Video as ExpoVideo, ResizeMode } from 'expo-av';
 
 const CAT_COLORS = ['#EDE7F6','#E3F2FD','#E8F5E9','#FFF3E0','#FCE4EC','#E0F7FA'];
 
@@ -36,8 +38,11 @@ export default function RequestsScreen() {
   const [finalVideoUrl, setFinalVideoUrl] = useState('');
   const [isOnline, setIsOnline] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [showStream, setShowStream] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<number|null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
+  const videoRef = React.useRef<any>(null);
   useEffect(() => { fetchData(); fetchUser(); }, []);
 
   const fetchUser = async () => {
@@ -76,17 +81,68 @@ export default function RequestsScreen() {
     finally { setProcessing(null); }
   };
 
-  const handleUpdateProgress = async (item: any) => {
+  const updateProgressValue = async (item: any, nextProgress: number) => {
     try {
       setProcessing(item.id);
-      const next = Math.min((item.progress||0)+20, 100);
-      await editorService.updateOrderStatus(item.id, next===100?'COMPLETED':'EDITING_STARTED', next);
+      await editorService.updateOrderStatus(item.id, nextProgress === 100 ? 'COMPLETED' : 'EDITING_STARTED', nextProgress);
       const d = await editorService.getAssignedOrders();
-      setAssignedOrders(d.orders||[]);
-      const updated = (d.orders||[]).find((o:any)=>o.id===item.id);
+      setAssignedOrders(d.orders || []);
+      const updated = (d.orders || []).find((o: any) => o.id === item.id);
       if (updated) setSelectedJob(updated);
-    } catch { Alert.alert('Error','Failed'); }
-    finally { setProcessing(null); }
+    } catch {
+      Alert.alert('Error', 'Failed to update progress');
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleUpdateProgress = async (item: any) => {
+    const current = item.progress || 0;
+    let next = current;
+    
+    if (current < 40) next = 40;
+    else if (current === 40) {
+      if ((item.previews || []).length < 1) {
+        Alert.alert('Preview Required', 'Please upload a preview draft to continue.');
+        return;
+      }
+      next = 80;
+    } else if (current === 80) {
+      if ((item.previews || []).length < 2) {
+        Alert.alert('Preview Required', 'Please upload a second preview draft to continue.');
+        return;
+      }
+      next = 90;
+    } else if (current === 90) {
+      setShowStream(true);
+      return;
+    } else if (current === 99) {
+      if (!item.finalUrl) {
+        Alert.alert('Final Output Required', 'Please upload the final delivery video using the upload button above to complete the project.');
+        return;
+      }
+      next = 100;
+    } else {
+      next = 100;
+    }
+
+    if (current !== 90) {
+      await updateProgressValue(item, next);
+    }
+  };
+
+  const handleStreamClose = () => {
+    setShowStream(false);
+    if (selectedJob && selectedJob.progress === 90) {
+      Alert.alert(
+        'Live Stream Ended',
+        'Did you complete the live stream session with the customer?',
+        [
+          { text: 'Not Yet', style: 'cancel' },
+          { text: 'Yes, Completed', onPress: () => updateProgressValue(selectedJob, 99) }
+        ]
+      );
+    }
   };
 
   const handleSendPreview = async () => {
@@ -106,12 +162,22 @@ export default function RequestsScreen() {
         Alert.alert('Sent!','Preview sent to customer!');
         await fetchData();
         setSelectedJob((prev: any) => ({ ...prev, previews: [...(prev.previews || []), videoUri] }));
-      } catch { Alert.alert('Error','Failed to upload preview'); }
+      } catch (err: any) { 
+        Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to upload preview'); 
+      }
       finally { setProcessing(null); }
     }
   };
 
   const handleDeliverFinal = async () => {
+    if (selectedJob && (selectedJob.progress || 0) < 99) {
+      Alert.alert(
+        'Not Allowed', 
+        'You must reach 99% progress (finish drafts & live stream) before delivering the final output.'
+      );
+      return;
+    }
+
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') { Alert.alert('Permission Denied', 'Please grant gallery access!'); return; }
 
@@ -128,9 +194,38 @@ export default function RequestsScreen() {
         Alert.alert('Delivered! 🚀','Client notified. Payment incoming.');
         await fetchData();
         setSelectedJob((prev: any) => ({ ...prev, finalUrl: videoUri, status: 'COMPLETED', progress: 100 }));
-      } catch { Alert.alert('Error','Failed to deliver final video'); }
+      } catch (err: any) { 
+        Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to deliver final video'); 
+      }
       finally { setProcessing(null); }
     }
+  };
+
+  const handleCancelOrder = () => {
+    Alert.alert(
+      'Cancel Order',
+      'Are you sure you want to cancel this order? This will negatively affect your Success Rate!',
+      [
+        { text: 'Keep Editing', style: 'cancel' },
+        { 
+          text: 'Cancel Order', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setProcessing(selectedJob.id);
+              await editorService.cancelOrder(selectedJob.id);
+              Alert.alert('Cancelled', 'The order has been cancelled.');
+              setSelectedJob(null);
+              fetchData();
+            } catch (err: any) {
+              Alert.alert('Error', err.response?.data?.message || err.message);
+            } finally {
+              setProcessing(null);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const openURL = (url: string|null|undefined) => {
@@ -253,7 +348,7 @@ export default function RequestsScreen() {
       />
 
       {/* Workspace Modal */}
-      <Modal visible={selectedJob!==null} animationType="slide" transparent onRequestClose={()=>setSelectedJob(null)}>
+      <Modal visible={selectedJob!==null} animationType="slide" transparent onRequestClose={() => { setSelectedJob(null); setPreviewVideoUrl(null); }}>
         <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':undefined} style={s.modalOverlay}>
           <View style={s.modalSheet}>
             <LinearGradient colors={['#4F46E5','#7C3AED']} style={s.modalHeader}>
@@ -262,7 +357,7 @@ export default function RequestsScreen() {
                   <Text style={s.modalTitle}>Project Hub</Text>
                   <Text style={s.modalSub} numberOfLines={1}>{selectedJob?.title}</Text>
                 </View>
-                <TouchableOpacity onPress={()=>setSelectedJob(null)} style={s.closeBtn}>
+                <TouchableOpacity onPress={() => { setSelectedJob(null); setPreviewVideoUrl(null); }} style={s.closeBtn}>
                   <X size={22} color="#FFF" />
                 </TouchableOpacity>
               </View>
@@ -296,48 +391,99 @@ export default function RequestsScreen() {
                 </View>
 
                 {/* Source video */}
-                <Text style={s.secLabel}>SOURCE MEDIA</Text>
-                    try {
-                      setDownloadProgress(0);
-                      const response = await editorService.getSignedVideo(selectedJob.id);
-                      const videoUrl = response.signedUrl || response.url || 'https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-sign-1232-large.mp4';
-                      const fileName = `EditGo_Raw_${selectedJob.id}_${Date.now()}.mp4`;
-                      const fileUri = FileSystem.documentDirectory + fileName;
-                      // Use downloadAsync which is the modern API
-                      const result = await FileSystem.downloadAsync(videoUrl, fileUri);
-                      if (!result?.uri) throw new Error('Download failed');
-                      const { status } = await MediaLibrary.requestPermissionsAsync();
-                      if (status === 'granted') {
-                        await MediaLibrary.saveToLibraryAsync(result.uri);
-                        Alert.alert('✅ Download Complete', 'Raw footage saved to your gallery!');
-                      } else {
-                        if (await Sharing.isAvailableAsync()) {
-                          await Sharing.shareAsync(result.uri);
-                        } else {
-                          Alert.alert('Downloaded', `File saved at ${result.uri}`);
-                        }
-                      }
-                      setDownloadProgress(null);
-                    } catch (e: any) {
-                      console.error('Download failed', e);
-                      setDownloadProgress(null);
-                      Alert.alert('Download Failed', e.message || 'Could not download video');
-                    }
-
-                }}>
-                  <View style={s.mediaLeft}>
-                    <View style={s.iconBox}>
-                      <Film size={20} color="#6366F1" />
-                    </View>
-                    <View>
-                      <Text style={s.mediaTitle}>Raw Footage</Text>
-                      <Text style={s.mediaSize}>
-                        {downloadProgress !== null ? `${downloadProgress}% Downloading...` : '4.2 GB • MP4'}
-                      </Text>
+                <Text style={s.secLabel}>MEDIA PLAYER</Text>
+                
+                {previewVideoUrl ? (
+                  <View style={s.videoPlayerContainer}>
+                    <ExpoVideo
+                      ref={videoRef}
+                      style={s.videoPlayer}
+                      source={{ uri: previewVideoUrl }}
+                      useNativeControls
+                      resizeMode={ResizeMode.CONTAIN}
+                      isLooping
+                      shouldPlay
+                    />
+                    <View style={s.videoActionRow}>
+                      <TouchableOpacity 
+                        style={s.downloadBtn}
+                        onPress={async () => {
+                          try {
+                            setDownloadProgress(0);
+                            const fileName = `EditGo_Raw_${selectedJob.id}_${Date.now()}.mp4`;
+                            const fileUri = FileSystem.documentDirectory + fileName;
+                            const result = await FileSystem.downloadAsync(previewVideoUrl, fileUri);
+                            if (!result?.uri) throw new Error('Download failed');
+                            const { status } = await MediaLibrary.requestPermissionsAsync();
+                            if (status === 'granted') {
+                              await MediaLibrary.saveToLibraryAsync(result.uri);
+                              Alert.alert('✅ Download Complete', 'Raw footage saved to your gallery!');
+                            } else {
+                              if (await Sharing.isAvailableAsync()) {
+                                await Sharing.shareAsync(result.uri);
+                              } else {
+                                Alert.alert('Downloaded', `File saved at ${result.uri}`);
+                              }
+                            }
+                            setDownloadProgress(null);
+                          } catch (e: any) {
+                            setDownloadProgress(null);
+                            Alert.alert('Download Failed', e.message);
+                          }
+                        }}>
+                        <Text style={s.downloadBtnText}>
+                          {downloadProgress !== null ? `Downloading ${downloadProgress}%...` : 'Download to Gallery'}
+                        </Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                        style={s.openEditorBtn}
+                        onPress={async () => {
+                          try {
+                            const fileName = `EditGo_Share_${selectedJob.id}_${Date.now()}.mp4`;
+                            const fileUri = FileSystem.cacheDirectory + fileName;
+                            const result = await FileSystem.downloadAsync(previewVideoUrl, fileUri);
+                            if (await Sharing.isAvailableAsync()) {
+                              await Sharing.shareAsync(result.uri, { mimeType: 'video/mp4', dialogTitle: 'Open in Editor' });
+                            }
+                          } catch {
+                            Linking.openURL(previewVideoUrl);
+                          }
+                        }}>
+                        <Text style={s.openEditorBtnText}>Share to Editor App</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
-                  <ChevronRight size={18} color="#CBD5E1" />
-                </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity style={s.mediaCard} onPress={async () => {
+                      try {
+                        setDownloadProgress(0);
+                        const response = await editorService.getSignedVideo(selectedJob.id);
+                        let videoUrl = response.signedUrl || response.url || 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4';
+                        if (videoUrl.includes('w3schools') || videoUrl.includes('mixkit') || videoUrl.includes('googleapis')) {
+                          videoUrl = 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4';
+                        }
+                        setPreviewVideoUrl(videoUrl);
+                        setDownloadProgress(null);
+                      } catch (e: any) {
+                        setDownloadProgress(null);
+                        Alert.alert('Failed to load video', e.message);
+                      }
+                  }}>
+                    <View style={s.mediaLeft}>
+                      <View style={s.iconBox}>
+                        <Film size={20} color="#6366F1" />
+                      </View>
+                      <View>
+                        <Text style={s.mediaTitle}>Raw Footage</Text>
+                        <Text style={s.mediaSize}>
+                          {downloadProgress !== null ? 'Loading Video...' : 'Tap to Play / Download'}
+                        </Text>
+                      </View>
+                    </View>
+                    <ChevronRight size={18} color="#CBD5E1" />
+                  </TouchableOpacity>
+                )}
 
                 {/* Draft Previews */}
                 <View style={s.secRow}>
@@ -349,7 +495,7 @@ export default function RequestsScreen() {
                   )}
                 </View>
                 {(selectedJob.previews||[]).map((p:string,i:number)=>(
-                  <TouchableOpacity key={i} style={s.previewItem} onPress={()=>openURL(p)}>
+                  <TouchableOpacity key={i} style={s.previewItem} onPress={()=>setPreviewVideoUrl(p)}>
                     <Play size={13} color="#4F46E5" />
                     <Text style={s.previewText}>Preview v{i+1}</Text>
                     <ChevronRight size={14} color="#CBD5E1" />
@@ -396,8 +542,22 @@ export default function RequestsScreen() {
                     <TouchableOpacity style={s.incrementBtn} onPress={()=>handleUpdateProgress(selectedJob)} disabled={processing===selectedJob.id}>
                       {processing===selectedJob.id
                         ? <ActivityIndicator color="#FFF" />
-                        : <Text style={s.incrementText}>INCREMENT PROGRESS (+20%)</Text>
+                        : <Text style={s.incrementText}>
+                              {selectedJob.progress < 40 ? 'UPDATE TO 40%' : 
+                             selectedJob.progress === 40 ? 'UPDATE TO 80%' : 
+                             selectedJob.progress === 80 ? 'UPDATE TO 90%' : 
+                             selectedJob.progress === 90 ? 'START LIVE STREAM' : 
+                             selectedJob.progress === 99 ? 'MARK 100% COMPLETED' : 'INCREMENT PROGRESS'}
+                          </Text>
                       }
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                      style={{ marginTop: 12, paddingVertical: 12, alignItems: 'center', backgroundColor: '#FEE2E2', borderRadius: 12, borderWidth: 1, borderColor: '#FECACA' }} 
+                      onPress={handleCancelOrder} 
+                      disabled={processing===selectedJob.id}
+                    >
+                      <Text style={{ color: '#DC2626', fontWeight: '700', fontSize: 13 }}>Cancel Order (Impacts Success Rate)</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -410,6 +570,14 @@ export default function RequestsScreen() {
 
       {currentUser && selectedJob && (
         <ChatModal visible={showChat} onClose={()=>setShowChat(false)} orderId={selectedJob.id} currentUser={currentUser} />
+      )}
+      
+      {selectedJob && (
+        <LiveStreamModal 
+          visible={showStream} 
+          onClose={handleStreamClose} 
+          roomId={`EditGo-Order-${selectedJob.id}`} 
+        />
       )}
     </View>
   );
@@ -501,4 +669,16 @@ const s = StyleSheet.create({
   largePfill: {height:8, backgroundColor:'#4F46E5', borderRadius:4},
   incrementBtn: {backgroundColor:'#4F46E5', paddingVertical:16, borderRadius:16, alignItems:'center'},
   incrementText: {color:'#FFF', fontSize:14, fontWeight:'900'},
+  // Video Player Styles
+  videoPlayerContainer: {backgroundColor:'#000', borderRadius:16, overflow:'hidden', marginBottom:20},
+  videoPlayer: {width:'100%', height:220},
+  videoActionRow: {flexDirection:'row', padding:10, gap:10, backgroundColor:'#1E293B'},
+  downloadBtn: {flex:1, backgroundColor:'#4F46E5', paddingVertical:10, borderRadius:10, alignItems:'center'},
+  downloadBtnText: {color:'#FFF', fontSize:12, fontWeight:'800'},
+  openEditorBtn: {flex:1, backgroundColor:'rgba(255,255,255,0.1)', paddingVertical:10, borderRadius:10, alignItems:'center'},
+  openEditorBtnText: {color:'#FFF', fontSize:12, fontWeight:'800'},
+  mediaLeft: {flexDirection:'row', alignItems:'center', flex:1},
+  iconBox: {width:42, height:42, borderRadius:12, backgroundColor:'#EDE7F6', alignItems:'center', justifyContent:'center', marginRight:12},
+  mediaTitle: {fontSize:14, fontWeight:'800', color:'#1E293B'},
+  mediaSize: {fontSize:12, color:'#64748B', fontWeight:'600', marginTop:2},
 });

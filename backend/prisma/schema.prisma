@@ -44,6 +44,7 @@ enum OrderStatus {
   EXPORTING
   UPLOADING
   COMPLETED
+  CANCELLED
 }
 
 enum TrustLevel {
@@ -97,6 +98,7 @@ model User {
   favoriteEditorIds String[] @db.ObjectId
   favoriteEditors Editor[] @relation("FavoriteEditors", fields: [favoriteEditorIds], references: [id])
   editorProfile  Editor?
+  reviews        Review[]
 }
 
 model Order {
@@ -122,10 +124,14 @@ model Order {
   
   deliverySpeed String?     // "standard", "turbo", "zap"
   initialETAMins Int?       // Original estimated minutes
+  acceptedAt    DateTime?
+  isLate        Boolean     @default(false)
   
   contentSensitivity ContentSensitivity @default(PRIVATE)
   privacyAgreementSigned Boolean @default(false)
   
+  review        Review?
+
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 }
@@ -181,6 +187,7 @@ model Editor {
   orders          Order[]       @relation("EditorOrders")
   violations         ViolationReport[]
   accessLogs         FileAccessLog[]
+  reviews            Review[]
 }
 
 model PortfolioItem {
@@ -226,3 +233,17 @@ model FileAccessLog {
   
   createdAt   DateTime @default(now())
 }
+
+model Review {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  orderId     String   @unique @db.ObjectId
+  order       Order    @relation(fields: [orderId], references: [id])
+  editorId    String   @db.ObjectId
+  editor      Editor   @relation(fields: [editorId], references: [id])
+  customerId  String   @db.ObjectId
+  customer    User     @relation(fields: [customerId], references: [id])
+  rating      Int      // 1 to 5
+  comment     String?
+  createdAt   DateTime @default(now())
+}
+

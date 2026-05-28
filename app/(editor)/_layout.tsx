@@ -59,10 +59,19 @@ export default function EditorLayout() {
       />
       <Tabs.Screen 
         name="subscriptions" 
-        options={{ 
-          tabBarLabel: 'Subscription',
-          tabBarIcon: ({ color }) => <CreditCard size={20} color={color} /> 
-        }} 
+        options={{ href: null }} 
+      />
+      <Tabs.Screen 
+        name="kyc-verification" 
+        options={{ href: null }} 
+      />
+      <Tabs.Screen 
+        name="wallet" 
+        options={{ href: null }} 
+      />
+      <Tabs.Screen 
+        name="trust-dashboard" 
+        options={{ href: null }} 
       />
     </Tabs>
   );

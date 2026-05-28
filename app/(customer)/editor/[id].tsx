@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Modal } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronLeft, Star, Heart, Play, ShieldCheck, Award, MessageSquare } from 'lucide-react-native';
+import { ChevronLeft, Star, Heart, Play, ShieldCheck, Award, MessageSquare, X, Video as VideoIcon } from 'lucide-react-native';
+import { Video, ResizeMode } from 'expo-av';
 import api from '../../../src/services/api';
 
 export default function PublicEditorProfile() {
@@ -10,10 +11,21 @@ export default function PublicEditorProfile() {
   const { id } = useLocalSearchParams();
   const [editor, setEditor] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  
+  const [videoModalVisible, setVideoModalVisible] = useState(false);
+  const [selectedPlayUrl, setSelectedPlayUrl] = useState('');
+  const [selectedPlayTitle, setSelectedPlayTitle] = useState('');
 
   useEffect(() => {
     fetchProfile();
   }, [id]);
+
+  const optimizeUrl = (url: string) => {
+    if (url && url.includes('cloudinary.com') && !url.includes('q_auto')) {
+      return url.replace('/upload/', '/upload/q_auto,f_auto/');
+    }
+    return url;
+  };
 
   const fetchProfile = async () => {
     try {
@@ -121,14 +133,37 @@ export default function PublicEditorProfile() {
               <Text style={s.emptyText}>No portfolio items uploaded yet.</Text>
             </View>
           ) : (
-            editor.portfolio.map((item: any) => (
+            editor.portfolio.map((item: any, index: number) => {
+              const colors = [
+                ['#4F46E5', '#7C3AED'],
+                ['#F43F5E', '#E11D48'],
+                ['#10B981', '#059669'],
+                ['#F59E0B', '#D97706'],
+                ['#3B82F6', '#2563EB']
+              ];
+              const itemGradient = colors[index % colors.length];
+              
+              return (
               <View key={item.id} style={s.portfolioCard}>
-                <View style={s.videoThumbContainer}>
-                  <Image source={{uri: item.thumbnail}} style={s.videoThumb} />
+                <TouchableOpacity 
+                  style={s.videoThumbContainer}
+                  onPress={() => {
+                    setSelectedPlayTitle(item.title);
+                    setSelectedPlayUrl(optimizeUrl(item.videoUrl));
+                    setVideoModalVisible(true);
+                  }}
+                >
+                  {item.thumbnail && !item.thumbnail.includes('unsplash') ? (
+                    <Image source={{uri: item.thumbnail}} style={s.videoThumb} />
+                  ) : (
+                    <LinearGradient colors={itemGradient} style={s.thumbnailPlaceholder}>
+                      <VideoIcon size={40} color="rgba(255,255,255,0.4)" />
+                    </LinearGradient>
+                  )}
                   <View style={s.playBtn}>
                     <Play size={24} color="#FFF" fill="#FFF" style={{marginLeft: 3}} />
                   </View>
-                </View>
+                </TouchableOpacity>
                 <View style={s.portfolioInfo}>
                   <Text style={s.portfolioTitle}>{item.title}</Text>
                   <Text style={s.portfolioCategory}>{item.category}</Text>
@@ -137,6 +172,40 @@ export default function PublicEditorProfile() {
                     <Text style={s.likeText}>{item.likes} Likes</Text>
                   </View>
                 </View>
+              </View>
+            )})
+          )}
+
+          {/* Reviews Section */}
+          <View style={s.portfolioHeader}>
+            <Text style={s.sectionTitle}>Client Feedback</Text>
+            <Text style={s.portfolioCount}>{editor.reviews?.length || 0} Reviews</Text>
+          </View>
+
+          {(!editor.reviews || editor.reviews.length === 0) ? (
+            <View style={s.emptyBox}>
+              <Text style={s.emptyText}>This editor hasn't received any reviews yet.</Text>
+            </View>
+          ) : (
+            editor.reviews.map((review: any) => (
+              <View key={review.id} style={s.reviewCard}>
+                <View style={s.reviewHeader}>
+                  <View style={s.reviewUser}>
+                    {review.customer?.avatar ? (
+                      <Image source={{ uri: review.customer.avatar }} style={s.reviewAvatar} />
+                    ) : (
+                      <View style={[s.reviewAvatar, { backgroundColor: '#E2E8F0', alignItems: 'center', justifyContent: 'center' }]}>
+                        <Text style={{ fontWeight: '700', color: '#64748B' }}>{(review.customer?.name || 'C')[0].toUpperCase()}</Text>
+                      </View>
+                    )}
+                    <Text style={s.reviewName}>{review.customer?.name || 'Customer'}</Text>
+                  </View>
+                  <View style={s.ratingBadge}>
+                    <Star size={14} color="#FBBF24" fill="#FBBF24" />
+                    <Text style={s.ratingText}>{review.rating}.0</Text>
+                  </View>
+                </View>
+                <Text style={s.reviewComment}>{review.comment || 'No comment provided.'}</Text>
               </View>
             ))
           )}
@@ -157,6 +226,32 @@ export default function PublicEditorProfile() {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      {/* Video Player Modal */}
+      <Modal visible={videoModalVisible} animationType="slide" transparent={true} onRequestClose={() => setVideoModalVisible(false)}>
+        <View style={s.modalBg}>
+          <View style={s.modalHeader}>
+            <Text style={s.modalTitle}>{selectedPlayTitle}</Text>
+            <TouchableOpacity onPress={() => setVideoModalVisible(false)} style={s.modalCloseBtn}>
+              <X size={20} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+          <View style={s.videoContainer}>
+            {selectedPlayUrl ? (
+              <Video
+                source={{ uri: selectedPlayUrl }}
+                style={s.fullVideo}
+                useNativeControls
+                resizeMode={ResizeMode.CONTAIN}
+                isLooping
+                shouldPlay={true}
+              />
+            ) : (
+              <Text style={{ color: '#FFF' }}>Loading video...</Text>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -203,5 +298,20 @@ const s = StyleSheet.create({
   chatBtn: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E0E7FF' },
   hireBtn: { flex: 1, borderRadius: 28, overflow: 'hidden' },
   hireBtnGradient: { height: 56, alignItems: 'center', justifyContent: 'center' },
-  hireBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800' }
+  hireBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
+  thumbnailPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  modalBg: { flex: 1, backgroundColor: '#0F172A', paddingTop: 60 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 20 },
+  modalTitle: { color: '#FFF', fontSize: 18, fontWeight: '800' },
+  modalCloseBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  videoContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
+  fullVideo: { width: '100%', height: '100%' },
+  reviewCard: { backgroundColor: '#FFF', padding: 16, borderRadius: 16, marginBottom: 16, borderWidth: 1, borderColor: '#F1F5F9' },
+  reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  reviewUser: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  reviewAvatar: { width: 32, height: 32, borderRadius: 16 },
+  reviewName: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
+  ratingBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFFBEB', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  ratingText: { fontSize: 12, fontWeight: '700', color: '#D97706' },
+  reviewComment: { fontSize: 14, color: '#475569', lineHeight: 22 }
 });

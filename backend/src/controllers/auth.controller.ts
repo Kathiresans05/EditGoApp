@@ -74,7 +74,17 @@ export const login = async (req: Request, res: Response) => {
 
     const user = await prisma.user.findUnique({
       where: { phone },
-      include: { editorProfile: true }
+      include: { 
+        editorProfile: {
+          include: { 
+            portfolio: true,
+            reviews: {
+              include: { customer: { select: { name: true, avatar: true } } },
+              orderBy: { createdAt: 'desc' }
+            }
+          }
+        }
+      }
     });
     console.log('User found:', user ? 'YES' : 'NO');
 
@@ -114,7 +124,17 @@ export const getMe = async (req: any, res: Response) => {
     const userId = req.user.id;
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { editorProfile: true }
+      include: { 
+        editorProfile: {
+          include: { 
+            portfolio: true,
+            reviews: {
+              include: { customer: { select: { name: true, avatar: true } } },
+              orderBy: { createdAt: 'desc' }
+            }
+          }
+        }
+      }
     });
 
     if (!user) return res.status(404).json({ message: 'User not found' });

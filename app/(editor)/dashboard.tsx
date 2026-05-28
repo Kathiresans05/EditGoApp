@@ -12,8 +12,12 @@ import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import api, { authService, orderService, editorService } from '../../src/services/api';
 import { Audio } from 'expo-av';
+import * as SecureStore from 'expo-secure-store';
 
 const { width } = Dimensions.get('window');
+
+// Global cache to strictly prevent ignored orders from showing up across component re-renders
+const globalIgnoredRequests = new Set<string>();
 
 const STAT_CARDS = [
   { key: 'earnings', label: 'Total Earnings', prefix: '₹', bg: '#EDE7F6', text: '#7C3AED', accent: '#7C3AED' },
@@ -29,14 +33,15 @@ export default function EditorDashboard() {
   const [activeJobs, setActiveJobs] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sound, setSound] = useState<any>(null);
+  const soundRef = React.useRef<any>(null);
+  const ignoredRequestsRef = React.useRef<string[]>([]);
 
   useEffect(() => {
     fetchDashboardData();
     const interval = setInterval(() => fetchDashboardData(true), 5000);
     return () => {
       clearInterval(interval);
-      if (sound) sound.unloadAsync();
+      if (soundRef.current) soundRef.current.unloadAsync();
     };
   }, []);
 
@@ -46,17 +51,30 @@ export default function EditorDashboard() {
   }, [requests.length, isOnline]);
 
   const playSound = async () => {
+    if (soundRef.current) return;
     try {
       const { sound: newSound } = await Audio.Sound.createAsync(
         { uri: 'https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3' },
         { shouldPlay: true, isLooping: true, volume: 1.0 }
       );
-      setSound(newSound);
+      soundRef.current = newSound;
+      
+      // Safety check: if requests became 0 while we were loading, stop immediately
+      setRequests((currentRequests) => {
+        if (currentRequests.length === 0 || !isOnline) {
+          stopSound();
+        }
+        return currentRequests;
+      });
     } catch (error) { console.error('Failed to play sound', error); }
   };
 
   const stopSound = async () => {
-    if (sound) { await sound.stopAsync(); await sound.unloadAsync(); setSound(null); }
+    if (soundRef.current) { 
+      await soundRef.current.stopAsync(); 
+      await soundRef.current.unloadAsync(); 
+      soundRef.current = null; 
+    }
   };
 
   const fetchDashboardData = async (isSilent = false) => {
@@ -71,7 +89,15 @@ export default function EditorDashboard() {
       setIsOnline(profile.editorProfile?.isOnline || false);
       const allOrders = ordersData.orders || [];
       setActiveJobs(allOrders.filter((o: any) => o.status !== 'SEARCHING' && o.status !== 'COMPLETED'));
-      setRequests(availableData.orders || []);
+      
+      const ignoredLocal = await SecureStore.getItemAsync('ignored_orders');
+      const ignoredArr = ignoredLocal ? JSON.parse(ignoredLocal) : [];
+      ignoredArr.forEach((id: string) => globalIgnoredRequests.add(id));
+      
+      ignoredRequestsRef.current = Array.from(globalIgnoredRequests);
+
+      const newRequests = (availableData.orders || []).filter((r: any) => !globalIgnoredRequests.has(r.id));
+      setRequests(newRequests);
     } catch (error) {
       console.error('[EditorDashboard] Fetch Error:', error);
     } finally { setLoading(false); }
@@ -126,7 +152,15 @@ export default function EditorDashboard() {
             <Text style={styles.onlineLabel}>{isOnline ? '🟢 ONLINE' : '🔴 OFFLINE'}</Text>
             <Switch
               value={isOnline}
-              onValueChange={setIsOnline}
+              onValueChange={async (val) => {
+                setIsOnline(val); // Optimistic update
+                try {
+                  await editorService.toggleOnline(val);
+                } catch (e) {
+                  setIsOnline(!val); // Revert on failure
+                  console.error('Failed to toggle online', e);
+                }
+              }}
               trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#4ADE80' }}
               thumbColor="#FFF"
             />
@@ -275,7 +309,10 @@ export default function EditorDashboard() {
                 onPress={async () => {
                   try {
                     const response = await api.post(`/orders/${requests[0].id}/claim`);
-                    if (response.data.success) router.push('/(editor)/requests');
+                    if (response.data.success) {
+                      stopSound(); // Explicitly stop the sound before navigating
+                      router.push('/(editor)/requests');
+                    }
                   } catch (error: any) {
                     const msg = error.response?.data?.message || 'Project already claimed or unavailable.';
                     Alert.alert('Cannot Claim Project', msg);
@@ -285,7 +322,25 @@ export default function EditorDashboard() {
               >
                 <Text style={styles.claimText}>ACCEPT PROJECT NOW</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setRequests([])} style={{ marginTop: 18 }}>
+              <TouchableOpacity onPress={async () => {
+                const ignoredId = requests[0]?.id;
+                if (ignoredId) {
+                  globalIgnoredRequests.add(ignoredId);
+                  ignoredRequestsRef.current.push(ignoredId);
+                  
+                  // Optimistically update the UI to instantly remove it
+                  setRequests(prev => prev.filter(r => r.id !== ignoredId));
+
+                  const ignoredLocal = await SecureStore.getItemAsync('ignored_orders');
+                  const ignoredArr = ignoredLocal ? JSON.parse(ignoredLocal) : [];
+                  if (!ignoredArr.includes(ignoredId)) {
+                    ignoredArr.push(ignoredId);
+                    await SecureStore.setItemAsync('ignored_orders', JSON.stringify(ignoredArr));
+                  }
+                } else {
+                  setRequests([]);
+                }
+              }} style={{ marginTop: 18 }}>
                 <Text style={{ color: 'rgba(255,255,255,0.6)', fontWeight: '700', fontSize: 14 }}>Ignore</Text>
               </TouchableOpacity>
             </LinearGradient>

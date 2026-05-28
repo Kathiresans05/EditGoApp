@@ -1,7 +1,25 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import multer from 'multer';
+import path from 'path';
+import crypto from 'crypto';
+import fs from 'fs';
+import { uploadToCloudinary } from '../services/cloudinary.service';
 
 const prisma = new PrismaClient();
+
+const uploadDir = path.join(__dirname, '../../uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, crypto.randomBytes(12).toString('hex') + ext);
+  },
+});
+const upload = multer({ storage });
 
 // Get Editor Profile (For Editor Dashboard)
 export const getMyProfile = async (req: Request, res: Response) => {
@@ -89,6 +107,10 @@ export const getPublicProfile = async (req: Request, res: Response) => {
         user: { select: { name: true, avatar: true } },
         portfolio: {
           orderBy: { likes: 'desc' }
+        },
+        reviews: {
+          include: { customer: { select: { name: true, avatar: true } } },
+          orderBy: { createdAt: 'desc' }
         }
       }
     });
@@ -106,33 +128,49 @@ export const getPublicProfile = async (req: Request, res: Response) => {
   }
 };
 
-// Add Portfolio Item
-export const addPortfolioItem = async (req: Request, res: Response) => {
-  try {
-    const userId = (req as any).user.id;
-    const { title, category, videoUrl, thumbnailUrl, beforeUrl } = req.body;
+export const addPortfolioItem = [
+  upload.single('video'),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user.id;
+      const { title, category } = req.body;
 
-    const editor = await prisma.editor.findUnique({ where: { userId } });
-    if (!editor) {
-      return res.status(404).json({ success: false, message: 'Editor not found' });
-    }
+      if (!req.file) return res.status(400).json({ success: false, message: 'No video file uploaded' });
 
-    const portfolioItem = await prisma.portfolioItem.create({
-      data: {
-        editorId: editor.id,
-        title,
-        category,
-        videoUrl,
-        thumbnail: thumbnailUrl,
-        beforeUrl,
+      const editor = await prisma.editor.findUnique({ where: { userId } });
+      if (!editor) return res.status(404).json({ success: false, message: 'Editor not found' });
+
+      let cloudinaryUrl = await uploadToCloudinary(req.file.path, 'portfolio');
+      let isLocalFallback = false;
+      
+      if (!cloudinaryUrl || cloudinaryUrl.includes('test-videos')) {
+        const protocol = req.protocol;
+        const host = req.get('host');
+        cloudinaryUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+        isLocalFallback = true;
       }
-    });
 
-    res.status(201).json({ success: true, data: portfolioItem });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: 'Error adding portfolio item', error: error.message });
+      const portfolioItem = await prisma.portfolioItem.create({
+        data: {
+          editorId: editor.id,
+          title,
+          category,
+          videoUrl: cloudinaryUrl,
+          thumbnail: 'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=400', // Dummy thumbnail for now
+        }
+      });
+
+      if (!isLocalFallback) {
+        fs.unlink(req.file.path, (err) => { if (err) console.error(err); });
+      }
+
+      res.status(201).json({ success: true, data: portfolioItem });
+    } catch (error: any) {
+      console.error('Error adding portfolio item:', error);
+      res.status(500).json({ success: false, message: 'Error adding portfolio item', error: error.message });
+    }
   }
-};
+];
 
 // Delete Portfolio Item
 export const deletePortfolioItem = async (req: Request, res: Response) => {

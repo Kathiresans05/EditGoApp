@@ -4,11 +4,19 @@ import { AuthRequest } from '../middlewares/auth.middleware';
 import multer from 'multer';
 import path from 'path';
 import crypto from 'crypto';
+import { uploadToCloudinary } from '../services/cloudinary.service';
+import fs from 'fs';
+
+// Ensure uploads directory exists
+const uploadDir = path.join(__dirname, '../../uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 // Multer config – store files in /uploads folder with random name
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../../uploads'));
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
@@ -110,31 +118,52 @@ export const updateOrderStatus = async (req: AuthRequest, res: Response) => {
   }
 };
 
-// ------------------------------------------------------------
-// 1) Upload raw footage from customer (store and save URL)
 export const uploadRawVideo = [
   upload.single('video'),
   async (req: AuthRequest, res: Response) => {
-    const { id } = req.params; // order id
+    const { id } = req.params;
     if (!req.file) return res.status(400).json({ success: false, message: 'No video file uploaded' });
-    const videoUrl = `${process.env.BASE_URL?.replace('/api','')}/uploads/${req.file.filename}`;
-    const order = await prisma.order.update({
-      where: { id: id as string },
-      data: { videoUrl },
-    });
-    res.json({ success: true, order });
+    
+    try {
+      let cloudinaryUrl = await uploadToCloudinary(req.file.path, 'raw_videos');
+      let isLocalFallback = false;
+      
+      if (!cloudinaryUrl || cloudinaryUrl.includes('test-videos') || cloudinaryUrl.includes('w3schools') || cloudinaryUrl.includes('mixkit')) {
+        const protocol = req.protocol;
+        const host = req.get('host');
+        cloudinaryUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+        isLocalFallback = true;
+      }
+
+      const order = await prisma.order.update({
+        where: { id: id as string },
+        data: { videoUrl: cloudinaryUrl },
+      });
+
+      if (!isLocalFallback) {
+        fs.unlink(req.file.path, (err) => {
+          if (err) console.error('Failed to delete local file:', err);
+        });
+      }
+
+      res.json({ success: true, order });
+    } catch (error: any) {
+      console.error('Error uploading to Cloudinary:', error);
+      res.status(500).json({ success: false, message: 'Failed to upload video to Cloudinary' });
+    }
   },
 ];
 
-// 2) Generate a temporary signed URL for editor to stream raw video
 export const getSignedVideo = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
     const order = await prisma.order.findUnique({ where: { id: id as string } });
     
-    // For demo purposes, if videoUrl is missing, we use a fallback demo video
-    const finalVideoUrl = order?.videoUrl || 'https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-sign-1232-large.mp4';
+    let finalVideoUrl = order?.videoUrl || 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4';
+    if (finalVideoUrl.includes('w3schools') || finalVideoUrl.includes('mixkit') || finalVideoUrl.includes('googleapis')) {
+      finalVideoUrl = 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4';
+    }
     
     const editor = await prisma.editor.findUnique({ where: { userId } });
     if (editor && order) {
@@ -156,32 +185,94 @@ export const getSignedVideo = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const addPreview = async (req: AuthRequest, res: Response) => {
-  try {
+export const uploadPreviewVideo = [
+  upload.single('video'),
+  async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const { previewUrl } = req.body;
+    if (!req.file) return res.status(400).json({ success: false, message: 'No video file uploaded' });
 
-    const order = await prisma.order.findUnique({ where: { id: id as string } });
-    if (!order) return res.status(404).json({ message: 'Order not found' });
+    try {
+      const order = await prisma.order.findUnique({ where: { id: id as string } });
+      if (!order) return res.status(404).json({ message: 'Order not found' });
+      if (order.previews.length >= 3) return res.status(400).json({ message: 'Maximum 3 previews reached' });
 
-    if (order.previews.length >= 3) {
-      return res.status(400).json({ message: 'Maximum 3 previews reached' });
-    }
-
-    const updatedOrder = await prisma.order.update({
-      where: { id: id as string },
-      data: {
-        previews: {
-          push: previewUrl
-        }
+      let cloudinaryUrl = await uploadToCloudinary(req.file.path, 'previews');
+      let isLocalFallback = false;
+      
+      if (!cloudinaryUrl || cloudinaryUrl.includes('test-videos') || cloudinaryUrl.includes('w3schools') || cloudinaryUrl.includes('mixkit')) {
+        const protocol = req.protocol;
+        const host = req.get('host');
+        cloudinaryUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+        isLocalFallback = true;
       }
-    });
 
-    res.json({ success: true, order: updatedOrder });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: 'Failed to add preview', error: error.message });
+      const updatedOrder = await prisma.order.update({
+        where: { id: id as string },
+        data: {
+          previews: {
+            push: cloudinaryUrl
+          }
+        }
+      });
+
+      if (!isLocalFallback) {
+        fs.unlink(req.file.path, (err) => { if (err) console.error('Failed to delete local file:', err); });
+      }
+      res.json({ success: true, order: updatedOrder });
+    } catch (error: any) {
+      console.error('Error uploading preview:', error);
+      res.status(500).json({ success: false, message: 'Failed to add preview', error: error.message });
+    }
   }
-};
+];
+
+export const uploadFinalVideo = [
+  upload.single('video'),
+  async (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    if (!req.file) return res.status(400).json({ success: false, message: 'No video file uploaded' });
+    
+    try {
+      let cloudinaryUrl = await uploadToCloudinary(req.file.path, 'final_videos');
+      let isLocalFallback = false;
+      
+      if (!cloudinaryUrl || cloudinaryUrl.includes('test-videos') || cloudinaryUrl.includes('w3schools') || cloudinaryUrl.includes('mixkit')) {
+        const protocol = req.protocol;
+        const host = req.get('host');
+        cloudinaryUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+        isLocalFallback = true;
+      }
+
+      const currentOrder = await prisma.order.findUnique({ where: { id: id as string } });
+      const acceptedAt = currentOrder?.acceptedAt ? new Date(currentOrder.acceptedAt).getTime() : Date.now();
+      const initialETAMins = currentOrder?.initialETAMins || 45;
+      const elapsedMins = (Date.now() - acceptedAt) / 60000;
+      const isLate = elapsedMins > initialETAMins;
+
+      const updatedOrder = await prisma.order.update({
+        where: { id: id as string },
+        data: {
+          finalUrl: cloudinaryUrl,
+          status: 'COMPLETED',
+          progress: 100,
+          isLate
+        }
+      });
+
+      if (updatedOrder.editorId) {
+        await updateEditorSuccessRate(updatedOrder.editorId);
+      }
+
+      if (!isLocalFallback) {
+        fs.unlink(req.file.path, (err) => { if (err) console.error('Failed to delete local file:', err); });
+      }
+      res.json({ success: true, order: updatedOrder });
+    } catch (error: any) {
+      console.error('Error uploading final video:', error);
+      res.status(500).json({ success: false, message: 'Failed to upload final video', error: error.message });
+    }
+  }
+];
 
 export const getAvailableOrders = async (req: AuthRequest, res: Response) => {
   try {
@@ -223,13 +314,8 @@ export const claimOrder = async (req: AuthRequest, res: Response) => {
 
     let editor = await prisma.editor.findUnique({ where: { userId } });
     if (!editor) {
-      // Auto-create editor profile if they don't have one
       editor = await prisma.editor.create({ data: { userId } });
     }
-
-    // if (editor.verificationStatus !== 'APPROVED') {
-    //   return res.status(403).json({ message: 'Your account is pending verification or suspended.' });
-    // }
 
     const order = await prisma.order.update({
       where: { id: id as string },
@@ -237,7 +323,8 @@ export const claimOrder = async (req: AuthRequest, res: Response) => {
         editorId: editor.id,
         status: 'ACCEPTED',
         progress: 10,
-        privacyAgreementSigned: privacyAgreementSigned === true
+        privacyAgreementSigned: privacyAgreementSigned === true,
+        acceptedAt: new Date()
       }
     });
 
@@ -245,5 +332,94 @@ export const claimOrder = async (req: AuthRequest, res: Response) => {
   } catch (error: any) {
     console.error('[claimOrder] Prisma error:', error);
     res.status(500).json({ success: false, message: error.message || 'Failed to claim order' });
+  }
+};
+
+export const submitReview = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { rating, comment } = req.body;
+    const customerId = req.user.id;
+
+    const order = await prisma.order.findUnique({ where: { id: id as string } });
+    if (!order) return res.status(404).json({ message: 'Order not found' });
+    if (!order.editorId) return res.status(400).json({ message: 'Order has no editor' });
+
+    const existingReview = await prisma.review.findUnique({ where: { orderId: order.id } });
+    if (existingReview) return res.status(400).json({ message: 'Review already submitted' });
+
+    const review = await prisma.review.create({
+      data: {
+        orderId: order.id,
+        editorId: order.editorId,
+        customerId,
+        rating: parseInt(rating),
+        comment: comment || '',
+      }
+    });
+
+    const editor = await prisma.editor.findUnique({ where: { id: order.editorId } });
+    if (editor) {
+      const allReviews = await prisma.review.findMany({ where: { editorId: editor.id } });
+      const totalOrders = allReviews.length;
+      const sumRating = allReviews.reduce((sum, r) => sum + r.rating, 0);
+      const newAvg = totalOrders > 0 ? (sumRating / totalOrders) : rating;
+
+      await prisma.editor.update({
+        where: { id: editor.id },
+        data: {
+          rating: newAvg,
+          totalOrders: { increment: 1 }
+        }
+      });
+    }
+
+    res.json({ success: true, review });
+  } catch (error: any) {
+    console.error('[submitReview] Error:', error);
+    res.status(500).json({ success: false, message: 'Failed to submit review', error: error.message });
+  }
+};
+
+async function updateEditorSuccessRate(editorId: string) {
+  try {
+    const completed = await prisma.order.count({ where: { editorId, status: 'COMPLETED', isLate: false } });
+    const late = await prisma.order.count({ where: { editorId, status: 'COMPLETED', isLate: true } });
+    const cancelled = await prisma.order.count({ where: { editorId, status: 'CANCELLED' } });
+    
+    // Total orders handled (completed on time + completed late + cancelled)
+    const total = completed + late + cancelled;
+
+    const successRate = total === 0 ? 100 : (completed / total) * 100;
+
+    await prisma.editor.update({
+      where: { id: editorId },
+      data: { successRate: parseFloat(successRate.toFixed(1)) }
+    });
+  } catch (error) {
+    console.error('Error updating success rate:', error);
+  }
+};
+
+export const cancelOrder = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const order = await prisma.order.findUnique({ where: { id: id as string } });
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    
+    const updatedOrder = await prisma.order.update({
+      where: { id: id as string },
+      data: { status: 'CANCELLED' }
+    });
+
+    if (updatedOrder.editorId) {
+      await updateEditorSuccessRate(updatedOrder.editorId);
+    }
+
+    res.json({ success: true, message: 'Order cancelled successfully', order: updatedOrder });
+  } catch (error) {
+    console.error('Error cancelling order:', error);
+    res.status(500).json({ success: false, message: 'Failed to cancel order' });
   }
 };
