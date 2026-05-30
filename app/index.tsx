@@ -1,14 +1,44 @@
-import React from 'react';
-import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, StatusBar } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Image, StyleSheet, Dimensions, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Sparkles, ArrowRight, Play, CheckCircle2 } from 'lucide-react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
+import * as SecureStore from 'expo-secure-store';
 
 const { width, height } = Dimensions.get('window');
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      try {
+        const token = await SecureStore.getItemAsync('userToken');
+        const role = await SecureStore.getItemAsync('userRole');
+        
+        if (token && role) {
+          if (role === 'ADMIN') router.replace('/(admin)/dashboard');
+          else if (role === 'EDITOR') router.replace('/(editor)/dashboard');
+          else router.replace('/(customer)/home');
+          return;
+        }
+      } catch (e) {
+        console.log('Auto login failed', e);
+      }
+      setChecking(false);
+    };
+    checkLoginStatus();
+  }, []);
+
+  if (checking) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#7C3AED' }]}>
+        <ActivityIndicator size="large" color="#FFF" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

@@ -24,6 +24,19 @@ export default function LoginScreen() {
     const init = async () => {
       await initBaseUrl();
       setCustomUrl(BASE_URL);
+      
+      try {
+        const token = await SecureStore.getItemAsync('userToken');
+        const role = await SecureStore.getItemAsync('userRole');
+        
+        if (token && role) {
+          if (role === 'ADMIN') router.replace('/(admin)/dashboard');
+          else if (role === 'EDITOR') router.replace('/(editor)/dashboard');
+          else router.replace('/(customer)/home');
+        }
+      } catch (e) {
+        console.log('Login auto-redirect failed', e);
+      }
     };
     init();
   }, []);
