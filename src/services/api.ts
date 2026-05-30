@@ -25,28 +25,38 @@ const getDebuggerHost = () => {
   return url;
 };
 
-const DEFAULT_ANDROID_URL = 'http://192.168.1.5:8000/api';
-const DETECTED_URL = 'http://192.168.1.5:8000/api';
-const FALLBACK_URL = 'http://192.168.1.5:8000/api';
+const PROD_URL = 'https://editgoapp.onrender.com/api';
 
-export let BASE_URL = 'http://192.168.1.5:8000/api';
+export let BASE_URL = PROD_URL;
 
 // Initialize BASE_URL dynamically
 export const initBaseUrl = async () => {
-  // Detect local debugger IP
+  // If the user manually saved a server url via the secret menu, use that
+  try {
+    const savedUrl = await SecureStore.getItemAsync('server_url');
+    if (savedUrl) {
+      BASE_URL = savedUrl;
+      api.defaults.baseURL = savedUrl;
+      console.log('[API] Using saved server URL:', savedUrl);
+      return;
+    }
+  } catch (e) {
+    // Ignore error
+  }
+
+  // Detect local debugger IP for local development
   const debugHost = getDebuggerHost();
-  if (debugHost) {
+  if (debugHost && __DEV__) {
     console.log('[API] Setting Dev Host URL:', debugHost);
     BASE_URL = debugHost;
     api.defaults.baseURL = debugHost;
     return;
   }
 
-  // Standard Emulator Loopback fallback based on platform
-  const localIp = 'http://192.168.1.19:8000/api';
-  console.log('[API] Setting Local Dev fallback:', localIp);
-  BASE_URL = localIp;
-  api.defaults.baseURL = localIp;
+  // Default to Production API
+  console.log('[API] Using Production Server:', PROD_URL);
+  BASE_URL = PROD_URL;
+  api.defaults.baseURL = PROD_URL;
 };
 
 const api = axios.create({
