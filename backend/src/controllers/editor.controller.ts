@@ -99,7 +99,7 @@ export const submitKyc = async (req: Request, res: Response) => {
 // Get Public Profile (For Customers)
 export const getPublicProfile = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     
     const editor = await prisma.editor.findUnique({
       where: { id },
@@ -175,7 +175,7 @@ export const addPortfolioItem = [
 // Delete Portfolio Item
 export const deletePortfolioItem = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const userId = (req as any).user.id;
 
     const editor = await prisma.editor.findUnique({ where: { userId } });
@@ -199,7 +199,7 @@ export const deletePortfolioItem = async (req: Request, res: Response) => {
 // Submit Rating (Customer to Editor)
 export const rateEditor = async (req: Request, res: Response) => {
   try {
-    const { editorId } = req.params;
+    const editorId = req.params.editorId as string;
     const { rating } = req.body; // 1 to 5
     const customerId = (req as any).user.id;
 
