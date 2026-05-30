@@ -5,6 +5,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronLeft, CreditCard, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react-native';
 import api from '../../src/services/api';
 
+import RazorpayCheckout from 'react-native-razorpay';
+
 export default function CheckoutScreen() {
   const router = useRouter();
   const { orderId } = useLocalSearchParams();
@@ -31,34 +33,44 @@ export default function CheckoutScreen() {
         orderId: orderData.id,
       });
 
-      const { id: razorpayOrderId, amount } = res.data.data;
+      const { id: razorpayOrderId, amount, key } = res.data.data;
 
-      // 2. Open Razorpay Checkout (Simulated for Expo)
-      // In a real bare RN app, you would use RazorpayCheckout.open(options)
-      setTimeout(async () => {
-        setLoading(false);
-        setVerifying(true);
+      // 2. Open Razorpay Checkout 
+      const options = {
+        description: orderData.title,
+        image: 'https://cdn-icons-png.flaticon.com/512/8636/8636404.png',
+        currency: 'INR',
+        key: key,
+        amount: amount,
+        name: 'EditGo Platform',
+        order_id: razorpayOrderId,
+        theme: { color: '#4F46E5' }
+      };
+
+      try {
+        const data = await RazorpayCheckout.open(options);
         
-        // 3. Verify Payment Signature on Backend (Simulated success)
-        try {
-          await api.post('/payments/verify', {
-            razorpay_order_id: razorpayOrderId,
-            razorpay_payment_id: `pay_${Math.random().toString(36).substring(7)}`,
-            razorpay_signature: 'mock_signature_from_razorpay', // Would fail backend check without disabling sig check in dev
-            internal_order_id: orderData.id
-          });
-        } catch (verifyError) {
-          // Ignore verify error for this frontend demo
-          console.log('Verification simulated');
-        }
+        setVerifying(true);
+        // 3. Verify Payment Signature on Backend
+        await api.post('/payments/verify', {
+          razorpay_order_id: razorpayOrderId,
+          razorpay_payment_id: data.razorpay_payment_id,
+          razorpay_signature: data.razorpay_signature,
+          internal_order_id: orderData.id
+        });
 
         setVerifying(false);
         setSuccess(true);
-      }, 2000);
+      } catch (paymentError: any) {
+        setLoading(false);
+        // User closed the Razorpay modal
+        console.log('Payment failed or cancelled', paymentError);
+        Alert.alert('Payment Cancelled', 'You cancelled the payment.');
+      }
 
     } catch (e: any) {
       setLoading(false);
-      Alert.alert('Payment Failed', e.response?.data?.message || 'Could not initiate payment.');
+      Alert.alert('Payment Error', e.response?.data?.message || 'Could not initiate payment.');
     }
   };
 

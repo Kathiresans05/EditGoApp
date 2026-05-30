@@ -144,17 +144,26 @@ export const getMe = async (req: any, res: Response) => {
       where: { customerId: userId }
     });
 
+    const completedOrders = await prisma.order.count({
+      where: { customerId: userId, status: 'COMPLETED' }
+    });
+
     const totalSpent = await prisma.order.aggregate({
       where: { customerId: userId, status: 'COMPLETED' },
       _sum: { price: true }
+    });
+
+    const reviewsGiven = await prisma.review.count({
+      where: { customerId: userId }
     });
 
     res.json({
       ...user,
       stats: {
         totalOrders: orderCount,
+        completedOrders,
         totalSpent: totalSpent._sum.price || 0,
-        avgRating: 4.8 // Mock rating for customer profile for now
+        reviewsGiven,
       }
     });
   } catch (error) {
@@ -235,5 +244,26 @@ export const updateProfile = async (req: any, res: Response) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Error updating profile' });
+  }
+};
+
+export const updatePushToken = async (req: any, res: Response) => {
+  try {
+    const userId = req.user.id;
+    const { pushToken } = req.body;
+
+    if (!pushToken) {
+      return res.status(400).json({ message: 'Push token is required' });
+    }
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { pushToken }
+    });
+
+    res.json({ message: 'Push token updated successfully', pushToken: user.pushToken });
+  } catch (error) {
+    console.error('Error updating push token:', error);
+    res.status(500).json({ message: 'Error updating push token' });
   }
 };

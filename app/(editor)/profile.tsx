@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, StatusBar, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, StatusBar, Modal, Alert } from 'react-native';
 import { Star, Shield, Award, Clock, Settings, LogOut, ChevronRight, AlertCircle, Film, User, CheckCircle2, CreditCard, Wallet, ShieldCheck, FileBadge, X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -161,9 +161,24 @@ export default function EditorProfile() {
           {/* Performance stats summary */}
           <Text style={styles.secTitle}>Performance Summary</Text>
           <View style={styles.perfCard}>
-            <PerformanceRow icon={<Clock size={18} color="#4F46E5" />} label="Average Speed" value={editor?.responseSpeed || "Unknown"} />
-            <PerformanceRow icon={<Star size={18} color="#FB8C00" />} label="Review Rate" value={editor?.rating ? `${editor.rating.toFixed(1)} / 5` : 'New'} />
-            <PerformanceRow icon={<CheckCircle2 size={18} color="#2E7D32" />} label="Successful delivery" value={`${editor?.successRate || 100}%`} />
+            <PerformanceRow 
+              icon={<Clock size={18} color="#4F46E5" />} 
+              label="Average Speed" 
+              value={editor?.responseSpeed || "Unknown"} 
+              onPress={() => Alert.alert('Average Speed', 'This is the average time you take to complete an editing order.')}
+            />
+            <PerformanceRow 
+              icon={<Star size={18} color="#FB8C00" />} 
+              label="Review Rate" 
+              value={editor?.rating ? `${editor.rating.toFixed(1)} / 5` : 'New'} 
+              onPress={() => Alert.alert('Review Rate', 'This is your average rating out of 5 stars from customers.')}
+            />
+            <PerformanceRow 
+              icon={<CheckCircle2 size={18} color="#2E7D32" />} 
+              label="Successful delivery" 
+              value={`${editor?.successRate || 100}%`} 
+              onPress={() => Alert.alert('Success Rate', 'This is the percentage of orders you successfully deliver without cancellations or being late.')}
+            />
           </View>
 
           {/* Recent Reviews */}
@@ -297,15 +312,15 @@ function PortfolioItem({ title, tag, color, bg, onPress }: any) {
   );
 }
 
-function PerformanceRow({ icon, label, value }: any) {
+function PerformanceRow({ icon, label, value, onPress }: any) {
   return (
-    <View style={styles.perfItem}>
+    <TouchableOpacity style={styles.perfItem} onPress={onPress}>
       <View style={styles.perfLeft}>
         <View style={styles.perfIcon}>{icon}</View>
         <Text style={styles.perfLabel}>{label}</Text>
       </View>
       <Text style={styles.perfValue}>{value}</Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 

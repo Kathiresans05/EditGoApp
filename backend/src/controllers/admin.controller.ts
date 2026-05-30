@@ -299,3 +299,53 @@ export const getFileAccessLogs = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: 'Error fetching access logs', error: error.message });
   }
 };
+
+// --- PAYOUTS & WITHDRAWALS ---
+export const getAllWithdrawals = async (req: Request, res: Response) => {
+  try {
+    const withdrawals = await prisma.withdrawalRequest.findMany({
+      include: {
+        editor: {
+          include: {
+            user: { select: { name: true, email: true, phone: true } }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.status(200).json({ success: true, data: withdrawals });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Error fetching withdrawals', error: error.message });
+  }
+};
+
+export const updateWithdrawalStatus = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, referenceId, adminNotes } = req.body; // 'APPROVED' or 'REJECTED'
+
+    const withdrawal = await prisma.withdrawalRequest.findUnique({ where: { id: id as string } });
+    if (!withdrawal) return res.status(404).json({ success: false, message: 'Withdrawal not found' });
+
+    if (withdrawal.status !== 'PENDING') {
+      return res.status(400).json({ success: false, message: 'Withdrawal already processed' });
+    }
+
+    const updatedWithdrawal = await prisma.withdrawalRequest.update({
+      where: { id: id as string },
+      data: { status, referenceId, adminNotes }
+    });
+
+    // If REJECTED, refund the amount to editor's balance
+    if (status === 'REJECTED') {
+      await prisma.editor.update({
+        where: { id: withdrawal.editorId },
+        data: { balance: { increment: withdrawal.amount } }
+      });
+    }
+
+    res.status(200).json({ success: true, data: updatedWithdrawal });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Error updating withdrawal', error: error.message });
+  }
+};

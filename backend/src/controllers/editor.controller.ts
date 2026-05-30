@@ -233,3 +233,55 @@ export const rateEditor = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: 'Error submitting rating', error: error.message });
   }
 };
+
+// Request Withdrawal (Editor)
+export const requestWithdrawal = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const { amount, bankDetails } = req.body;
+
+    const editor = await prisma.editor.findUnique({ where: { userId } });
+    if (!editor) return res.status(404).json({ success: false, message: 'Editor not found' });
+
+    if (editor.balance < amount) {
+      return res.status(400).json({ success: false, message: 'Insufficient balance' });
+    }
+
+    // Create withdrawal request
+    const withdrawal = await prisma.withdrawalRequest.create({
+      data: {
+        editorId: editor.id,
+        amount: parseFloat(amount),
+        bankDetails: bankDetails || editor.bankAccount || '',
+      }
+    });
+
+    // Deduct from balance immediately (pending status)
+    await prisma.editor.update({
+      where: { id: editor.id },
+      data: { balance: { decrement: parseFloat(amount) } }
+    });
+
+    res.status(201).json({ success: true, message: 'Withdrawal requested successfully', withdrawal });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Error requesting withdrawal', error: error.message });
+  }
+};
+
+// Get My Withdrawals (Editor)
+export const getMyWithdrawals = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const editor = await prisma.editor.findUnique({ where: { userId } });
+    if (!editor) return res.status(404).json({ success: false, message: 'Editor not found' });
+
+    const withdrawals = await prisma.withdrawalRequest.findMany({
+      where: { editorId: editor.id },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.status(200).json({ success: true, withdrawals });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Error fetching withdrawals', error: error.message });
+  }
+};

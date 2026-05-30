@@ -238,6 +238,14 @@ export const editorService = {
   cancelOrder: async (orderId: string) => {
     const response = await api.post(`/orders/${orderId}/cancel`);
     return response.data;
+  },
+  requestWithdrawal: async (amount: number, bankDetails?: string) => {
+    const response = await api.post('/editors/withdrawals', { amount, bankDetails });
+    return response.data;
+  },
+  getMyWithdrawals: async () => {
+    const response = await api.get('/editors/withdrawals');
+    return response.data;
   }
 };
 

@@ -572,11 +572,13 @@ export default function RequestsScreen() {
         <ChatModal visible={showChat} onClose={()=>setShowChat(false)} orderId={selectedJob.id} currentUser={currentUser} />
       )}
       
-      {selectedJob && (
+      {selectedJob && currentUser && (
         <LiveStreamModal 
           visible={showStream} 
           onClose={handleStreamClose} 
           roomId={`EditGo-Order-${selectedJob.id}`} 
+          orderId={selectedJob.id}
+          currentUser={currentUser}
         />
       )}
     </View>

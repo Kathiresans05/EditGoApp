@@ -6,6 +6,7 @@ import {
 import {
   User, Bell, Shield, CreditCard, HelpCircle,
   LogOut, ChevronRight, Star, Briefcase, Gift,
+  AlertTriangle, Lock, ShoppingCart,
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -76,7 +77,7 @@ export default function ProfileScreen() {
 
   const stats = [
     { label: 'Orders', value: user?.stats?.totalOrders || 0 },
-    { label: 'Rating', value: `${user?.stats?.avgRating || '5.0'}⭐` },
+    { label: 'Completed', value: user?.stats?.completedOrders || 0 },
     { label: 'Spent', value: `₹${((user?.stats?.totalSpent || 0) / 1000).toFixed(1)}k` },
   ];
 
@@ -114,7 +115,7 @@ export default function ProfileScreen() {
         <Animated.View entering={FadeInUp.delay(100)} style={styles.statCardsRow}>
           {[
             { label: 'Total Orders', value: user?.stats?.totalOrders || 0, palette: STAT_COLORS[0] },
-            { label: 'Avg Rating', value: `${user?.stats?.avgRating || '5.0'} ⭐`, palette: STAT_COLORS[1] },
+            { label: 'Reviews Given', value: user?.stats?.reviewsGiven || 0, palette: STAT_COLORS[1] },
             { label: 'Total Spent', value: `₹${((user?.stats?.totalSpent || 0) / 1000).toFixed(1)}k`, palette: STAT_COLORS[2] },
           ].map((card, i) => (
             <View key={i} style={[styles.miniCard, { backgroundColor: card.palette.bg }]}>
@@ -146,6 +147,13 @@ export default function ProfileScreen() {
             iconBg="#FFF3E0"
             label="Payment Methods"
             onPress={() => router.push('/(customer)/payment-methods')}
+          />
+          <View style={styles.divider} />
+          <MenuLink
+            icon={<ShoppingCart size={18} color="#2E7D32" />}
+            iconBg="#E8F5E9"
+            label="Checkout & Orders"
+            onPress={() => router.push('/(customer)/checkout')}
           />
           <View style={styles.divider} />
           <MenuLink
@@ -194,6 +202,20 @@ export default function ProfileScreen() {
             iconBg="#E8F5E9"
             label="Privacy Policy"
             onPress={() => router.push('/(customer)/privacy-policy')}
+          />
+          <View style={styles.divider} />
+          <MenuLink
+            icon={<Lock size={18} color="#4F46E5" />}
+            iconBg="#EDE7F6"
+            label="Privacy Settings"
+            onPress={() => router.push('/(customer)/privacy-settings')}
+          />
+          <View style={styles.divider} />
+          <MenuLink
+            icon={<AlertTriangle size={18} color="#EF4444" />}
+            iconBg="#FEF2F2"
+            label="Report an Issue"
+            onPress={() => router.push('/(customer)/report-issue')}
           />
         </Animated.View>
 

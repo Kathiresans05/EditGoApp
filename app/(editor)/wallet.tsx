@@ -36,9 +36,27 @@ export default function EditorWallet() {
   };
 
   const handleWithdraw = () => {
-    Alert.alert('Withdrawal Request', 'Minimum withdrawal is ₹500. Processed in 24 hours.', [
+    if (!editor || editor.balance < 500) {
+      Alert.alert('Cannot Withdraw', 'Minimum withdrawal amount is ₹500.');
+      return;
+    }
+
+    Alert.alert('Withdrawal Request', 'Do you want to request a withdrawal of all your available balance? It will be processed in 24 hours.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Confirm', onPress: () => Alert.alert('Success', 'Request sent! ✅') },
+      { 
+        text: 'Confirm', 
+        onPress: async () => {
+          try {
+            // Import editorService at top if needed, or we can use it here
+            const { editorService } = require('../../src/services/api');
+            await editorService.requestWithdrawal(editor.balance);
+            Alert.alert('Success', 'Request sent! ✅');
+            fetchWalletData(); // Refresh balance
+          } catch (error: any) {
+            Alert.alert('Error', error?.response?.data?.message || 'Failed to request withdrawal');
+          }
+        } 
+      },
     ]);
   };
 

@@ -6,7 +6,9 @@ import {
   deletePortfolioItem, 
   rateEditor,
   getKycStatus,
-  submitKyc
+  submitKyc,
+  requestWithdrawal,
+  getMyWithdrawals
 } from '../controllers/editor.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
@@ -18,6 +20,8 @@ router.get('/kyc-status', authMiddleware, getKycStatus);
 router.post('/kyc', authMiddleware, submitKyc);
 router.post('/portfolio', authMiddleware, addPortfolioItem);
 router.delete('/portfolio/:id', authMiddleware, deletePortfolioItem);
+router.post('/withdrawals', authMiddleware, requestWithdrawal);
+router.get('/withdrawals', authMiddleware, getMyWithdrawals);
 
 // Public / Customer Routes
 router.get('/:id', getPublicProfile);

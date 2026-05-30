@@ -6,6 +6,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { uploadToCloudinary } from '../services/cloudinary.service';
 import fs from 'fs';
+import { notifyAllEditors, sendPushNotification } from '../services/notification.service';
 
 // Ensure uploads directory exists
 const uploadDir = path.join(__dirname, '../../uploads');
@@ -48,6 +49,14 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         contentSensitivity: contentSensitivity || 'PRIVATE',
       },
     });
+
+    if (!editorId) {
+      await notifyAllEditors(
+        'New Project Available! 🚀',
+        `A new ${category} project was just posted for ₹${price}. Claim it now!`,
+        { orderId: order.id }
+      );
+    }
 
     res.status(201).json({ success: true, order });
   } catch (error: any) {
@@ -261,6 +270,32 @@ export const uploadFinalVideo = [
 
       if (updatedOrder.editorId) {
         await updateEditorSuccessRate(updatedOrder.editorId);
+        
+        // Earning Split Logic: 20% Platform, 80% Editor
+        // Only credit the editor if the order wasn't ALREADY completed (prevents double payment on re-uploads)
+        if (currentOrder?.status !== 'COMPLETED') {
+          const orderPrice = currentOrder?.price || 0;
+          const editorEarning = orderPrice * 0.8; // 80% going to Editor
+          
+          if (editorEarning > 0) {
+            await prisma.editor.update({
+              where: { id: updatedOrder.editorId },
+              data: {
+                balance: { increment: editorEarning },
+                totalEarnings: { increment: editorEarning }
+              }
+            });
+          }
+        }
+      }
+
+      if (currentOrder?.customerId) {
+        await sendPushNotification(
+          currentOrder.customerId,
+          'Final Video Delivered! 🎉',
+          'Your editor has uploaded the final HD video. Check it out now!',
+          { orderId: updatedOrder.id }
+        );
       }
 
       if (!isLocalFallback) {

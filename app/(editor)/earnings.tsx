@@ -110,7 +110,7 @@ export default function EarningsScreen() {
               <View style={styles.iconCircle}>
                 <Award size={16} color="#FB8C00" />
               </View>
-              <Text style={[styles.statAmount, { color: '#FB8C00' }]}>100%</Text>
+              <Text style={[styles.statAmount, { color: '#FB8C00' }]}>{editor?.successRate || 100}%</Text>
               <Text style={styles.statDesc}>Success Rate</Text>
             </Animated.View>
           </View>

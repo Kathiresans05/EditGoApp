@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { 
   getDashboardStats, getAllUsers, getAllEditors, getAllOrders, getRevenueData,
-  getPendingKYC, updateKYCStatus, getViolations, updateViolationStatus, getFileAccessLogs
+  getPendingKYC, updateKYCStatus, getViolations, updateViolationStatus, getFileAccessLogs,
+  getAllWithdrawals, updateWithdrawalStatus
 } from '../controllers/admin.controller';
 import { authMiddleware, adminMiddleware } from '../middlewares/auth.middleware';
 
@@ -20,5 +21,9 @@ router.patch('/kyc/:id', authMiddleware, adminMiddleware, updateKYCStatus);
 router.get('/violations', authMiddleware, adminMiddleware, getViolations);
 router.patch('/violations/:id', authMiddleware, adminMiddleware, updateViolationStatus);
 router.get('/logs', authMiddleware, adminMiddleware, getFileAccessLogs);
+
+// Payouts & Withdrawals
+router.get('/withdrawals', authMiddleware, adminMiddleware, getAllWithdrawals);
+router.patch('/withdrawals/:id', authMiddleware, adminMiddleware, updateWithdrawalStatus);
 
 export default router;

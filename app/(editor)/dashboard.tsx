@@ -6,12 +6,12 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Zap, TrendingUp, Star, Award, Clock, ChevronRight,
-  AlertCircle, CheckCircle, Bell, UserCircle, BarChart3,
+  AlertCircle, CheckCircle, Bell, UserCircle, BarChart3, X, Play,
 } from 'lucide-react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import api, { authService, orderService, editorService } from '../../src/services/api';
-import { Audio } from 'expo-av';
+import { Audio, Video, ResizeMode } from 'expo-av';
 import * as SecureStore from 'expo-secure-store';
 
 const { width } = Dimensions.get('window');
@@ -32,7 +32,11 @@ export default function EditorDashboard() {
   const [user, setUser] = useState<any>(null);
   const [activeJobs, setActiveJobs] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
+  const [portfolioItems, setPortfolioItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [videoModalVisible, setVideoModalVisible] = useState(false);
+  const [selectedVideoUrl, setSelectedVideoUrl] = useState('');
+  const [selectedVideoTitle, setSelectedVideoTitle] = useState('');
   const soundRef = React.useRef<any>(null);
   const ignoredRequestsRef = React.useRef<string[]>([]);
 
@@ -89,6 +93,14 @@ export default function EditorDashboard() {
       setIsOnline(profile.editorProfile?.isOnline || false);
       const allOrders = ordersData.orders || [];
       setActiveJobs(allOrders.filter((o: any) => o.status !== 'SEARCHING' && o.status !== 'COMPLETED'));
+
+      // Fetch real portfolio items
+      try {
+        const portfolioRes = await api.get('/editor/profile');
+        setPortfolioItems(portfolioRes.data.editor?.portfolio || []);
+      } catch (e) {
+        console.log('[Dashboard] Portfolio fetch skipped', e);
+      }
       
       const ignoredLocal = await SecureStore.getItemAsync('ignored_orders');
       const ignoredArr = ignoredLocal ? JSON.parse(ignoredLocal) : [];
@@ -270,26 +282,88 @@ export default function EditorDashboard() {
         {/* ── PORTFOLIO SAMPLES ── */}
         <View style={styles.sectionRow}>
           <Text style={styles.sectionTitle}>My Samples</Text>
-          <Text style={styles.addNew}>+ Add New</Text>
+          <TouchableOpacity onPress={() => router.push('/(editor)/portfolio')}>
+            <Text style={styles.addNew}>+ Add New</Text>
+          </TouchableOpacity>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
-          {[
-            'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=400',
-            'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?w=400',
-            'https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=400',
-          ].map((uri, i) => (
-            <View key={i} style={styles.sampleCard}>
-              <Image source={{ uri }} style={styles.sampleImg} />
-              <View style={styles.sampleTimeBadge}>
-                <Zap size={9} color="#FFF" fill="#FFF" />
-                <Text style={styles.sampleTimeText}>{[22, 18, 31][i]}m</Text>
-              </View>
-            </View>
-          ))}
-        </ScrollView>
+        {portfolioItems.length > 0 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
+            {portfolioItems.map((item, i) => (
+              <TouchableOpacity key={item.id || i} style={styles.sampleCard} onPress={() => {
+                if (item.videoUrl) {
+                  const url = item.videoUrl.includes('cloudinary.com') && !item.videoUrl.includes('q_auto')
+                    ? item.videoUrl.replace('/upload/', '/upload/q_auto,f_auto/')
+                    : item.videoUrl;
+                  setSelectedVideoUrl(url);
+                  setSelectedVideoTitle(item.title || 'Sample');
+                  setVideoModalVisible(true);
+                }
+              }}>
+                {item.thumbnail && !item.thumbnail.includes('unsplash') ? (
+                  <Image source={{ uri: item.thumbnail }} style={styles.sampleImg} />
+                ) : (
+                  <LinearGradient
+                    colors={[
+                      ['#4F46E5', '#7C3AED'],
+                      ['#F43F5E', '#E11D48'],
+                      ['#10B981', '#059669'],
+                      ['#F59E0B', '#D97706'],
+                      ['#3B82F6', '#2563EB'],
+                    ][i % 5] as [string, string]}
+                    style={[styles.sampleImg, { alignItems: 'center', justifyContent: 'center' }]}
+                  >
+                    <Zap size={24} color="rgba(255,255,255,0.5)" />
+                  </LinearGradient>
+                )}
+                {/* Play icon overlay */}
+                <View style={styles.playOverlay}>
+                  <Play size={20} color="#FFF" fill="#FFF" />
+                </View>
+                <View style={styles.sampleTimeBadge}>
+                  <Zap size={9} color="#FFF" fill="#FFF" />
+                  <Text style={styles.sampleTimeText} numberOfLines={1}>{item.title || 'Sample'}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        ) : (
+          <TouchableOpacity
+            style={[styles.emptyBox, { marginBottom: 0 }]}
+            onPress={() => router.push('/(editor)/portfolio')}
+          >
+            <Zap size={28} color="#DDD6FE" />
+            <Text style={styles.emptyText}>No samples yet — tap to add your first!</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={{ height: 110 }} />
       </View>
+
+      {/* ── VIDEO PLAYER MODAL ── */}
+      <Modal visible={videoModalVisible} animationType="slide" transparent onRequestClose={() => setVideoModalVisible(false)}>
+        <View style={styles.videoModalBg}>
+          <View style={styles.videoModalHeader}>
+            <Text style={styles.videoModalTitle} numberOfLines={1}>{selectedVideoTitle}</Text>
+            <TouchableOpacity onPress={() => setVideoModalVisible(false)} style={styles.videoModalClose}>
+              <X size={20} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.videoModalPlayer}>
+            {selectedVideoUrl ? (
+              <Video
+                source={{ uri: selectedVideoUrl }}
+                style={{ width: '100%', height: '100%' }}
+                useNativeControls
+                resizeMode={ResizeMode.CONTAIN}
+                isLooping
+                shouldPlay={videoModalVisible}
+              />
+            ) : (
+              <ActivityIndicator size="large" color="#FFF" />
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* ── RAPID ALERT MODAL ── */}
       <Modal visible={requests.length > 0 && isOnline} transparent animationType="fade">
@@ -424,6 +498,13 @@ const styles = StyleSheet.create({
   sampleImg: { width: '100%', height: '100%' },
   sampleTimeBadge: { position: 'absolute', bottom: 10, left: 10, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.65)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, gap: 4 },
   sampleTimeText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
+  playOverlay: { position: 'absolute', top: '50%', left: '50%', marginTop: -18, marginLeft: -18, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+
+  videoModalBg: { flex: 1, backgroundColor: '#0F172A', paddingTop: 60 },
+  videoModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 16 },
+  videoModalTitle: { color: '#FFF', fontSize: 18, fontWeight: '800', flex: 1, marginRight: 12 },
+  videoModalClose: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
+  videoModalPlayer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.9)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   alertCard: { width: '100%', borderRadius: 32, overflow: 'hidden', elevation: 12 },

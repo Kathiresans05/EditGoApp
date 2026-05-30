@@ -13,6 +13,12 @@ enum UserRole {
   ADMIN
 }
 
+enum WithdrawalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum MembershipPlan {
   FREE
   CREATOR_PLUS
@@ -92,6 +98,7 @@ model User {
   walletBalance Float     @default(0)
   referralCode  String?   @unique
   rewardPoints  Int       @default(0)
+  pushToken     String?   // For Expo push notifications
   
   // Relations
   customerOrders Order[]  @relation("CustomerOrders")
@@ -188,6 +195,7 @@ model Editor {
   violations         ViolationReport[]
   accessLogs         FileAccessLog[]
   reviews            Review[]
+  withdrawals        WithdrawalRequest[]
 }
 
 model PortfolioItem {
@@ -247,3 +255,15 @@ model Review {
   createdAt   DateTime @default(now())
 }
 
+model WithdrawalRequest {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  editorId    String   @db.ObjectId
+  editor      Editor   @relation(fields: [editorId], references: [id])
+  amount      Float
+  status      WithdrawalStatus @default(PENDING)
+  bankDetails String?
+  referenceId String?  
+  adminNotes  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

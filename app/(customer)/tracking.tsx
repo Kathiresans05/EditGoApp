@@ -13,6 +13,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { orderService, authService, customerService, BASE_URL } from '../../src/services/api';
 import ChatModal from '../../src/components/ChatModal';
+import LiveStreamModal from '../../src/components/LiveStreamModal';
 import axios from 'axios';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import * as WebBrowser from 'expo-web-browser';
@@ -32,6 +33,7 @@ export default function TrackingScreen() {
   const [paymentStep, setPaymentStep] = useState(1); // 1: Methods, 1.5: PIN, 2: Processing, 3: Success
   const [upiPin, setUpiPin] = useState('');
   const [showChat, setShowChat] = useState(false);
+  const [showStream, setShowStream] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showReview, setShowReview] = useState(false);
   const [rating, setRating] = useState(5);
@@ -367,13 +369,74 @@ export default function TrackingScreen() {
             </Animated.View>
           )}
 
+          {/* Interactive Live Stream Action */}
+          {order.progress >= 90 && order.progress < 100 && (
+            <Animated.View entering={FadeInUp.delay(180)} style={styles.liveStreamCard}>
+              <View style={styles.liveStreamInfo}>
+                <View style={styles.liveBadge}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.liveText}>LIVE</Text>
+                </View>
+                <Text style={styles.liveStreamTitle}>Editor is ready for Revisions</Text>
+                <Text style={styles.liveStreamSub}>Join the live workspace to provide your final feedback before rendering.</Text>
+              </View>
+              <TouchableOpacity style={styles.joinStreamBtn} onPress={() => setShowStream(true)}>
+                <Text style={styles.joinStreamText}>Join Workspace</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
           {/* Timeline */}
           <Text style={styles.sectionTitle}>Timeline</Text>
           <View style={styles.timeline}>
-            <TimelineRow title="Order Placed" subtitle="Rapid project initialized successfully" time="10:30 AM" done />
-            <TimelineRow title="Editor Assigned" subtitle={editor ? `${editor.user?.name} joined workspace` : 'Waiting for matching'} time="10:35 AM" done={!!editor} />
-            <TimelineRow title="Draft Handover" subtitle="Client checking live drafts" time="Live" done={order.previews?.length > 0} active={order.status === 'EDITING_STARTED'} />
-            <TimelineRow title="Quality Approval" subtitle="HD video delivery and payout clearance" time="Pending" done={order.status === 'COMPLETED'} />
+            <TimelineRow 
+              title="Order Placed" 
+              subtitle="Project initialized successfully" 
+              time="Done" 
+              done={true} 
+            />
+            <TimelineRow 
+              title="Expert Assigned" 
+              subtitle={editor ? `${editor.user?.name} joined the workspace` : 'Looking for the best editor'} 
+              time={order.acceptedAt ? 'Done' : 'Waiting'} 
+              done={order.progress >= 10} 
+              active={order.progress < 10} 
+            />
+            <TimelineRow 
+              title="Color Grading & VFX" 
+              subtitle="Editor is actively working on the timeline" 
+              time="Live" 
+              done={order.progress >= 40} 
+              active={order.progress >= 10 && order.progress < 40} 
+            />
+            <TimelineRow 
+              title="Rendering Drafts" 
+              subtitle="Exporting previews for your review" 
+              time="Live" 
+              done={order.progress >= 80} 
+              active={order.progress >= 40 && order.progress < 80} 
+            />
+            <TimelineRow 
+              title="Interactive Live Stream" 
+              subtitle="Real-time revision session" 
+              time="Live" 
+              done={order.progress >= 90} 
+              active={order.progress >= 80 && order.progress < 90} 
+            />
+            <TimelineRow 
+              title="Uploading Final HD Video" 
+              subtitle="High-res export being processed to cloud" 
+              time="Pending" 
+              done={order.progress >= 100} 
+              active={order.progress >= 90 && order.progress < 100} 
+            />
+            <TimelineRow 
+              title="Delivered" 
+              subtitle="Video ready for download and payment" 
+              time="Pending" 
+              done={order.status === 'COMPLETED'} 
+              active={order.progress === 100 && order.status !== 'COMPLETED'} 
+            />
           </View>
 
         </View>
@@ -564,6 +627,17 @@ export default function TrackingScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Live Stream Modal */}
+      {showStream && currentUser && order && (
+        <LiveStreamModal 
+          visible={showStream} 
+          onClose={() => setShowStream(false)} 
+          roomId={`EditGo-Order-${order.id}`}
+          orderId={order.id}
+          currentUser={currentUser}
+        />
+      )}
     </View>
   );
 }
@@ -640,6 +714,16 @@ const styles = StyleSheet.create({
   previewLabel: { fontSize: 11, color: '#64748B', fontWeight: '800', marginTop: 6 },
   emptyCard: { padding: 24, backgroundColor: '#FFF', borderRadius: 20, alignItems: 'center', borderStyle: 'dashed', borderWidth: 1.5, borderColor: '#CBD5E1' },
   emptyText: { fontSize: 12, color: '#94A3B8', fontWeight: '700', marginTop: 10 },
+
+  liveStreamCard: { backgroundColor: '#1E293B', borderRadius: 20, padding: 20, marginBottom: 20, flexDirection: 'column', gap: 16 },
+  liveStreamInfo: { flex: 1 },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(239, 68, 68, 0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 10 },
+  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444', marginRight: 6 },
+  liveText: { color: '#EF4444', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  liveStreamTitle: { color: '#FFF', fontSize: 16, fontWeight: '800', marginBottom: 4 },
+  liveStreamSub: { color: '#94A3B8', fontSize: 12, lineHeight: 18, fontWeight: '600' },
+  joinStreamBtn: { backgroundColor: '#7C3AED', paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
+  joinStreamText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
 
   readyBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#10B981', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, gap: 3 },
   readyText: { color: '#FFF', fontSize: 9, fontWeight: '900' },
