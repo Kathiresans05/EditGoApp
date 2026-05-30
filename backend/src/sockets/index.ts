@@ -4,9 +4,12 @@ export const setupSockets = (io: Server) => {
   io.on('connection', (socket: Socket) => {
     console.log('User connected:', socket.id);
 
-    socket.on('join_order', (orderId: string) => {
+    socket.on('join_order', (data: any) => {
+      const orderId = typeof data === 'string' ? data : data.orderId;
+      const role = typeof data === 'string' ? 'User' : data.role;
       socket.join(orderId);
-      console.log(`User joined order: ${orderId}`);
+      console.log(`User joined order: ${orderId} as ${role}`);
+      socket.to(orderId).emit('user_joined', { role, timestamp: new Date().toISOString() });
     });
 
     socket.on('send_message', (data: { orderId: string, message: string, senderId: string }) => {

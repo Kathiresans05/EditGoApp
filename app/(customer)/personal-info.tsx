@@ -45,7 +45,7 @@ export default function PersonalInfoScreen() {
     try {
       await authService.updateProfile(name, email);
       Alert.alert('Success', 'Personal information updated successfully!');
-      router.back();
+      router.push('/(customer)/profile');
     } catch (error: any) {
       console.error('Error updating profile:', error);
       Alert.alert('Error', error.response?.data?.message || 'Failed to update profile.');
@@ -72,7 +72,7 @@ export default function PersonalInfoScreen() {
       {/* Header */}
       <LinearGradient colors={['#7C3AED', '#5B21B6']} style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => router.push('/(customer)/profile')} style={styles.backBtn}>
             <ArrowLeft size={22} color="#FFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Personal Info</Text>

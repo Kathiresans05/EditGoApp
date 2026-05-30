@@ -7,6 +7,7 @@ import { Send, ChevronLeft, Phone, MoreVertical, MessageSquare } from 'lucide-re
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import io from 'socket.io-client';
+import { WebView } from 'react-native-webview';
 import { authService, BASE_URL } from '../../src/services/api';
 
 const SOCKET_URL = BASE_URL.replace('/api', '');
@@ -18,6 +19,8 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isCalling, setIsCalling] = useState(false);
+  const [editorOnline, setEditorOnline] = useState(false);
   const socketRef = useRef<any>(null);
   const flatListRef = useRef<any>(null);
 
@@ -27,7 +30,18 @@ export default function ChatScreen() {
         const user = await authService.getMe();
         setCurrentUser(user);
         socketRef.current = io(SOCKET_URL);
-        socketRef.current.emit('join_order', orderId);
+        socketRef.current.emit('join_order', { orderId, role: 'Customer' });
+        
+        socketRef.current.on('user_joined', (data: any) => {
+          setEditorOnline(true);
+          setMessages(prev => [...prev, {
+            id: Date.now().toString() + Math.random(),
+            type: 'system',
+            text: 'Editor has joined the chat',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }]);
+        });
+
         socketRef.current.on('receive_message', (data: any) => {
           setMessages(prev => [...prev, {
             id: Date.now().toString(),
@@ -86,17 +100,29 @@ export default function ChatScreen() {
             <View>
               <Text style={styles.editorName}>{editorName || 'Expert Editor'}</Text>
               <View style={styles.statusRow}>
-                <View style={styles.onlineDot} />
-                <Text style={styles.statusText}>Editing your project...</Text>
+                <View style={[styles.onlineDot, { backgroundColor: editorOnline ? '#4ADE80' : '#94A3B8' }]} />
+                <Text style={styles.statusText}>{editorOnline ? 'Online' : 'Offline'}</Text>
               </View>
             </View>
           </View>
 
-          <TouchableOpacity style={styles.callBtn}>
+          <TouchableOpacity style={[styles.callBtn, isCalling && { backgroundColor: '#EF4444' }]} onPress={() => setIsCalling(!isCalling)}>
             <Phone size={18} color="#FFF" />
           </TouchableOpacity>
         </View>
       </LinearGradient>
+
+      {/* Video Call View */}
+      {isCalling && (
+        <View style={{ height: 280, backgroundColor: '#000' }}>
+          <WebView
+            source={{ uri: `https://meet.ffmuc.net/Editgo_${orderId}#config.disableDeepLinking=true` }}
+            style={{ flex: 1 }}
+            allowsInlineMediaPlayback
+            mediaPlaybackRequiresUserAction={false}
+          />
+        </View>
+      )}
 
       {/* Messages */}
       <FlatList
@@ -106,6 +132,15 @@ export default function ChatScreen() {
         contentContainerStyle={styles.chatList}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
         renderItem={({ item }) => {
+          if (item.type === 'system') {
+            return (
+              <View style={{ alignItems: 'center', marginVertical: 10 }}>
+                <View style={{ backgroundColor: '#EDE7F6', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 }}>
+                  <Text style={{ fontSize: 12, color: '#7C3AED', fontWeight: '600' }}>{item.text}</Text>
+                </View>
+              </View>
+            );
+          }
           const isMe = item.senderId === currentUser?.id;
           return (
             <View style={[styles.bubbleWrap, isMe ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }]}>

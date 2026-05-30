@@ -37,19 +37,113 @@ export default function RapidStudioScreen() {
 
   const priceScale = useSharedValue(1);
 
+  const [pricingConfigs, setPricingConfigs] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Fetch pricing configs on mount
+    orderService.getPricingConfig = async () => {
+      try {
+        const { pricingService } = await import('../../src/services/api');
+        const res = await pricingService.getConfigs();
+        if (res.success) setPricingConfigs(res.data);
+      } catch (e) { console.error('Failed to load pricing configs', e); }
+    };
+    orderService.getPricingConfig();
+  }, []);
+
   useEffect(() => {
     if (detectedDuration > 0) {
       let p = 0;
-      if (detectedDuration <= 30)       p = 25 + detectedDuration * 0.8;
-      else if (detectedDuration <= 120)  p = 49 + (detectedDuration - 30) * 0.55;
-      else if (detectedDuration <= 300)  p = 99 + (detectedDuration - 120) * 0.27;
-      else                               p = 149 + (detectedDuration - 300) * 0.16;
+      let d = 30; // default base delivery
+      
+      let targetCategory = (params.categoryTitle as string) || 'Insta Reels';
+      
+      if ((targetCategory === 'Insta Reels' || targetCategory === 'YT Shorts' || targetCategory === 'Slow Motion') && detectedDuration > 180) {
+        Alert.alert('Upload Limit', `Only videos up to 3 mins can be uploaded for ${targetCategory}.`);
+        setDetectedDuration(0);
+        setSelectedMedia([]);
+        setIsAnalyzing(false);
+        return;
+      }
+
+      if (targetCategory === 'Cinematic' && detectedDuration > 1200) {
+        Alert.alert('Upload Limit', `Only videos up to 20 mins can be uploaded for ${targetCategory}.`);
+        setDetectedDuration(0);
+        setSelectedMedia([]);
+        setIsAnalyzing(false);
+        return;
+      }
+
+      if (targetCategory === 'AI Style' && detectedDuration > 300) {
+        Alert.alert('Upload Limit', `Only videos up to 5 mins can be uploaded for ${targetCategory}.`);
+        setDetectedDuration(0);
+        setSelectedMedia([]);
+        setIsAnalyzing(false);
+        return;
+      }
+
+      if (targetCategory === 'Insta Reels' || targetCategory === 'YT Shorts' || targetCategory === 'Slow Motion') {
+          if (detectedDuration <= 30) {
+              targetCategory = `${targetCategory} (0-30s)`;
+          } else if (detectedDuration <= 60) {
+              targetCategory = `${targetCategory} (30-60s)`;
+          } else if (detectedDuration <= 120) {
+              targetCategory = `${targetCategory} (1-2m)`;
+          } else if (detectedDuration <= 180) {
+              targetCategory = `${targetCategory} (2-3m)`;
+          }
+      } else if (targetCategory === 'Cinematic') {
+          if (detectedDuration <= 120) {
+              targetCategory = `${targetCategory} (0-2m)`;
+          } else if (detectedDuration <= 300) {
+              targetCategory = `${targetCategory} (2-5m)`;
+          } else if (detectedDuration <= 600) {
+              targetCategory = `${targetCategory} (5-10m)`;
+          } else if (detectedDuration <= 900) {
+              targetCategory = `${targetCategory} (10-15m)`;
+          } else if (detectedDuration <= 1200) {
+              targetCategory = `${targetCategory} (15-20m)`;
+          }
+      } else if (targetCategory === 'AI Style') {
+          if (detectedDuration <= 30) {
+              targetCategory = `${targetCategory} (0-30s)`;
+          } else if (detectedDuration <= 120) {
+              targetCategory = `${targetCategory} (30s-2m)`;
+          } else if (detectedDuration <= 240) {
+              targetCategory = `${targetCategory} (2-4m)`;
+          } else if (detectedDuration <= 300) {
+              targetCategory = `${targetCategory} (4-5m)`;
+          }
+      }
+
+      let config = pricingConfigs.find(c => c.category === targetCategory);
+      
+      // If config not found for specific category, try to use RAPID or generic fallback
+      if (!config) config = pricingConfigs.find(c => c.category === (params.categoryTitle || 'Insta Reels'));
+      if (!config) config = pricingConfigs.find(c => c.category === 'RAPID');
+      
+      if (config) {
+        // Dynamic Pricing
+        const pricePerSec = (config.targetPrice - config.basePrice) / config.targetSeconds;
+        const deliveryPerSec = (config.targetDeliveryMins - config.baseDeliveryMins) / config.targetSeconds;
+        
+        p = config.basePrice + (detectedDuration * pricePerSec);
+        d = config.baseDeliveryMins + (detectedDuration * deliveryPerSec);
+      } else {
+        // Fallback hardcoded logic
+        if (detectedDuration <= 30)       p = 25 + detectedDuration * 0.8;
+        else if (detectedDuration <= 120)  p = 49 + (detectedDuration - 30) * 0.55;
+        else if (detectedDuration <= 300)  p = 99 + (detectedDuration - 120) * 0.27;
+        else                               p = 149 + (detectedDuration - 300) * 0.16;
+        
+        d = 30 + detectedDuration / 20;
+      }
 
       setTotalPrice(Math.round(p));
-      setDeliveryTime(Math.round(30 + detectedDuration / 20));
+      setDeliveryTime(Math.round(d));
       priceScale.value = withSpring(1.2, {}, () => { priceScale.value = withSpring(1); });
     }
-  }, [detectedDuration]);
+  }, [detectedDuration, pricingConfigs, params.categoryTitle]);
 
   const animatedPrice = useAnimatedStyle(() => ({ transform: [{ scale: priceScale.value }] }));
 

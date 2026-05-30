@@ -268,4 +268,26 @@ export const customerService = {
   },
 };
 
+export const pricingService = {
+  getConfigs: async () => {
+    const response = await api.get('/pricing');
+    return response.data;
+  },
+  updateConfig: async (configData: any) => {
+    const response = await api.post('/pricing/update', configData);
+    return response.data;
+  }
+};
+
+export const settingService = {
+  getSettings: async () => {
+    const response = await api.get('/settings');
+    return response.data;
+  },
+  updateSettings: async (settings: any) => {
+    const response = await api.post('/settings/update', { settings });
+    return response.data;
+  }
+};
+
 export default api;

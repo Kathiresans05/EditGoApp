@@ -20,7 +20,7 @@ export default function RegisterScreen() {
   const [role, setRole] = useState<'customer' | 'editor'>('customer');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '', referredBy: '' });
 
   const update = (key: string, value: string) => setFormData(prev => ({ ...prev, [key]: value }));
 
@@ -102,6 +102,13 @@ export default function RegisterScreen() {
               onChangeText={v => update('phone', v)}
               keyboardType="phone-pad"
               prefix="+91"
+            />
+            <InputField
+              icon={<Sparkles size={18} color="#EC4899" />}
+              placeholder="Referral Code (Optional)"
+              value={formData.referredBy}
+              onChangeText={v => update('referredBy', v)}
+              autoCapitalize="characters"
             />
             <InputField
               icon={<Lock size={18} color="#FB8C00" />}

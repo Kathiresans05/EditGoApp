@@ -180,7 +180,7 @@ export default function PaymentMethodsScreen() {
       {/* Header */}
       <LinearGradient colors={['#7C3AED', '#5B21B6']} style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => router.push('/(customer)/profile')} style={styles.backBtn}>
             <ArrowLeft size={22} color="#FFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Payment Methods</Text>

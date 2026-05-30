@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Dimensions, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Dimensions, Platform, ActivityIndicator, Alert } from 'react-native';
 import { 
   ChevronLeft, DollarSign, Clock, Zap, 
   Save, Edit3, Trash2, Plus, Info, TrendingUp
@@ -7,26 +7,92 @@ import {
 import Animated, { FadeInUp, FadeInRight } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { pricingService } from '../../src/services/api';
 
 const { width } = Dimensions.get('window');
 
-const initialCategories = [
-  { id: '1', name: 'Insta Reels', basePrice: '79' },
-  { id: '2', name: 'YT Shorts', basePrice: '149' },
-  { id: '3', name: 'Cinematic', basePrice: '299' },
-  { id: '4', name: 'Thumbnails', basePrice: '79' },
-];
-
-const initialSpeeds = [
-  { id: 's1', name: 'Standard', time: '24-48 hrs', surcharge: '0' },
-  { id: 's2', name: 'Turbo', time: '4-6 hrs', surcharge: '70' },
-  { id: 's3', name: 'Zap', time: '45 mins', surcharge: '220' },
-];
-
 export default function PricingManagement() {
   const router = useRouter();
-  const [categories, setCategories] = useState(initialCategories);
-  const [speeds, setSpeeds] = useState(initialSpeeds);
+  const [configs, setConfigs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchConfigs();
+  }, []);
+
+  const EXPECTED_CATEGORIES = [
+    'Insta Reels (0-30s)', 'Insta Reels (30-60s)', 'Insta Reels (1-2m)', 'Insta Reels (2-3m)',
+    'YT Shorts (0-30s)', 'YT Shorts (30-60s)', 'YT Shorts (1-2m)', 'YT Shorts (2-3m)',
+    'Cinematic (0-2m)', 'Cinematic (2-5m)', 'Cinematic (5-10m)', 'Cinematic (10-15m)', 'Cinematic (15-20m)',
+    'AI Style (0-30s)', 'AI Style (30s-2m)', 'AI Style (2-4m)', 'AI Style (4-5m)',
+    'Slow Motion (0-30s)', 'Slow Motion (30-60s)', 'Slow Motion (1-2m)', 'Slow Motion (2-3m)',
+    'Thumbnails'
+  ];
+
+  const fetchConfigs = async () => {
+    try {
+      const res = await pricingService.getConfigs();
+      let dbConfigs = res.success && res.data ? res.data : [];
+      
+      // Ensure all expected categories exist in the UI even if not in DB yet
+      const mergedConfigs = EXPECTED_CATEGORIES.map(catName => {
+        const existing = dbConfigs.find((c: any) => c.category === catName);
+        if (existing) return existing;
+        
+        let targetSecs = 30;
+        if (catName.includes('(30-60s)')) targetSecs = 60;
+        else if (catName.includes('(1-2m)') || catName.includes('(0-2m)')) targetSecs = 120;
+        else if (catName.includes('(2-3m)')) targetSecs = 180;
+        else if (catName.includes('(2-5m)')) targetSecs = 300;
+        else if (catName.includes('(5-10m)')) targetSecs = 600;
+        else if (catName.includes('(10-15m)')) targetSecs = 900;
+        else if (catName.includes('(15-20m)')) targetSecs = 1200;
+        else if (catName.includes('(30s-2m)')) targetSecs = 120;
+        else if (catName.includes('(2-4m)')) targetSecs = 240;
+        else if (catName.includes('(4-5m)')) targetSecs = 300;
+        
+        return {
+          category: catName,
+          basePrice: 40,
+          targetPrice: 69,
+          targetSeconds: targetSecs,
+          baseDeliveryMins: 30,
+          targetDeliveryMins: 55
+        };
+      });
+      
+      setConfigs(mergedConfigs);
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to fetch pricing config');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      for (const conf of configs) {
+        await pricingService.updateConfig(conf);
+      }
+      Alert.alert('Success', 'Marketplace Pricing updated successfully!');
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to update pricing');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateConfigVal = (index: number, field: string, val: string) => {
+    const newConfigs = [...configs];
+    newConfigs[index][field] = Number(val) || 0;
+    setConfigs(newConfigs);
+  };
+
+  if (loading) return <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator size="large" color="#6366F1" /></View>;
 
   return (
     <View style={styles.container}>
@@ -52,68 +118,77 @@ export default function PricingManagement() {
             <Text style={styles.infoTitle}>Marketplace Yield</Text>
           </View>
           <Text style={styles.infoValue}>Dynamic Pricing Active</Text>
-          <Text style={styles.infoSub}>Prices are calculated as: [Base Category Price] + [Speed Surcharge]</Text>
+          <Text style={styles.infoSub}>Rates per second are auto-calculated from targets.</Text>
         </LinearGradient>
 
-        {/* Category Pricing */}
-        <Text style={styles.sectionTitle}>Base Category Prices</Text>
-        <View style={styles.listContainer}>
-          {categories.map((item, index) => (
-            <Animated.View key={item.id} entering={FadeInUp.delay(index * 100)} style={styles.priceItem}>
-              <View style={styles.itemInfo}>
-                <Text style={styles.itemName}>{item.name}</Text>
-                <Text style={styles.itemSub}>Minimum entry price</Text>
+        {configs.map((config, index) => (
+          <Animated.View key={index} entering={FadeInUp.delay(index * 100)}>
+            <Text style={styles.sectionTitle}>{config.category} Formula</Text>
+            <View style={styles.listContainer}>
+              
+              <View style={styles.priceItem}>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemName}>Base Price</Text>
+                  <Text style={styles.itemSub}>Minimum starting cost</Text>
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.currency}>₹</Text>
+                  <TextInput 
+                    style={styles.priceInput} value={String(config.basePrice)} keyboardType="numeric"
+                    onChangeText={(v) => updateConfigVal(index, 'basePrice', v)}
+                  />
+                </View>
               </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.currency}>₹</Text>
-                <TextInput 
-                  style={styles.priceInput}
-                  value={item.basePrice}
-                  keyboardType="numeric"
-                  onChangeText={(val) => {
-                    const newCats = [...categories];
-                    newCats[index].basePrice = val;
-                    setCategories(newCats);
-                  }}
-                />
-              </View>
-            </Animated.View>
-          ))}
-          <TouchableOpacity style={styles.addBtn}>
-            <Plus size={18} color="#6366F1" />
-            <Text style={styles.addBtnText}>Add New Category</Text>
-          </TouchableOpacity>
-        </View>
 
-        {/* Speed Surcharges */}
-        <Text style={styles.sectionTitle}>Delivery Surcharges</Text>
-        <View style={styles.listContainer}>
-          {speeds.map((item, index) => (
-            <Animated.View key={item.id} entering={FadeInUp.delay(index * 100)} style={styles.priceItem}>
-              <View style={styles.itemInfo}>
-                <Text style={styles.itemName}>{item.name}</Text>
-                <Text style={styles.itemSub}>{item.time}</Text>
+              <View style={styles.priceItem}>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemName}>Target Price</Text>
+                  <Text style={styles.itemSub}>For {config.targetSeconds} seconds</Text>
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.currency}>₹</Text>
+                  <TextInput 
+                    style={styles.priceInput} value={String(config.targetPrice)} keyboardType="numeric"
+                    onChangeText={(v) => updateConfigVal(index, 'targetPrice', v)}
+                  />
+                </View>
               </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.currency}>+₹</Text>
-                <TextInput 
-                  style={styles.priceInput}
-                  value={item.surcharge}
-                  keyboardType="numeric"
-                  onChangeText={(val) => {
-                    const newSpeeds = [...speeds];
-                    newSpeeds[index].surcharge = val;
-                    setSpeeds(newSpeeds);
-                  }}
-                />
-              </View>
-            </Animated.View>
-          ))}
-        </View>
 
-        <TouchableOpacity style={styles.saveBtn} activeOpacity={0.8}>
-          <Save size={20} color="#FFF" />
-          <Text style={styles.saveBtnText}>Update Marketplace Pricing</Text>
+              <View style={styles.priceItem}>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemName}>Base Delivery Mins</Text>
+                  <Text style={styles.itemSub}>Fixed extra time</Text>
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.currency}>+</Text>
+                  <TextInput 
+                    style={styles.priceInput} value={String(config.baseDeliveryMins)} keyboardType="numeric"
+                    onChangeText={(v) => updateConfigVal(index, 'baseDeliveryMins', v)}
+                  />
+                </View>
+              </View>
+
+              <View style={[styles.priceItem, { borderBottomWidth: 0 }]}>
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemName}>Target Delivery</Text>
+                  <Text style={styles.itemSub}>Total mins for {config.targetSeconds} seconds</Text>
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.currency}></Text>
+                  <TextInput 
+                    style={styles.priceInput} value={String(config.targetDeliveryMins)} keyboardType="numeric"
+                    onChangeText={(v) => updateConfigVal(index, 'targetDeliveryMins', v)}
+                  />
+                </View>
+              </View>
+
+            </View>
+          </Animated.View>
+        ))}
+
+        <TouchableOpacity style={styles.saveBtn} activeOpacity={0.8} onPress={handleSave} disabled={saving}>
+          {saving ? <ActivityIndicator color="#FFF" /> : <Save size={20} color="#FFF" />}
+          <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Update Marketplace Pricing'}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />

@@ -27,14 +27,21 @@ export const getHomeData = async (req: AuthRequest, res: Response) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    // Categories (keeping them in backend for now)
+    // Fetch live pricing configs
+    const pricingConfigs = await prisma.pricingConfig.findMany();
+    const getPrice = (catName: string, defaultPrice: string) => {
+      const conf = pricingConfigs.find(c => c.category === catName);
+      return conf ? String(conf.basePrice) : defaultPrice;
+    };
+
+    // Categories with live prices
     const categories = [
-      { id: '1', title: 'Insta Reels', icon: '📱', price: '79', trend: true },
-      { id: '2', title: 'YT Shorts', icon: '🎥', price: '149' },
-      { id: '3', title: 'Cinematic', icon: '🎬', price: '299', trend: true },
-      { id: '4', title: 'Thumbnails', icon: '🖼️', price: '79' },
-      { id: '5', title: 'AI Style', icon: '🤖', price: '199' },
-      { id: '6', title: 'Slow Motion', icon: '❄️', price: '129' },
+      { id: '1', title: 'Insta Reels', icon: '📱', price: getPrice('Insta Reels', '79'), trend: true },
+      { id: '2', title: 'YT Shorts', icon: '🎥', price: getPrice('YT Shorts', '149') },
+      { id: '3', title: 'Cinematic', icon: '🎬', price: getPrice('Cinematic', '299'), trend: true },
+      { id: '4', title: 'Thumbnails', icon: '🖼️', price: getPrice('Thumbnails', '79') },
+      { id: '5', title: 'AI Style', icon: '🤖', price: getPrice('AI Style', '199') },
+      { id: '6', title: 'Slow Motion', icon: '❄️', price: getPrice('Slow Motion', '129') },
     ];
 
     res.status(200).json({

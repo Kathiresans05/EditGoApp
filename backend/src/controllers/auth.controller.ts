@@ -8,7 +8,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
 export const register = async (req: Request, res: Response) => {
   try {
-    const { name, phone, email, password, role } = req.body;
+    const { name, phone, email, password, role, referredBy } = req.body;
 
     const existingUser = await prisma.user.findFirst({
       where: {
@@ -26,6 +26,28 @@ export const register = async (req: Request, res: Response) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const referralCode = `EG-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
+    let rewardAmount = 0;
+    
+    // Process referral logic
+    if (referredBy) {
+      const referrer = await prisma.user.findUnique({
+        where: { referralCode: referredBy }
+      });
+      
+      if (referrer) {
+        // Fetch dynamic reward amount
+        const setting = await prisma.systemSetting.findUnique({ where: { key: 'REFERRAL_REWARD' } });
+        const parsedReward = setting ? Number(setting.value) : 20;
+        rewardAmount = isNaN(parsedReward) ? 20 : parsedReward;
+        
+        // Credit the referrer
+        await prisma.user.update({
+          where: { id: referrer.id },
+          data: { walletBalance: { increment: rewardAmount } }
+        });
+      }
+    }
+
     const user = await prisma.user.create({
       data: {
         name,
@@ -33,6 +55,7 @@ export const register = async (req: Request, res: Response) => {
         email,
         password: hashedPassword,
         referralCode,
+        walletBalance: rewardAmount, // Credit the new user if they used a code
         role: role === 'editor' ? 'EDITOR' : 'CUSTOMER',
         // Initialize editor profile if role is editor
         ...(role === 'editor' && {
@@ -157,8 +180,15 @@ export const getMe = async (req: any, res: Response) => {
       where: { customerId: userId }
     });
 
+    const settings = await prisma.systemSetting.findMany();
+    const settingsObj = settings.reduce((acc: any, curr) => {
+      acc[curr.key] = curr.value;
+      return acc;
+    }, {});
+
     res.json({
       ...user,
+      settings: settingsObj,
       stats: {
         totalOrders: orderCount,
         completedOrders,

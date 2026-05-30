@@ -48,6 +48,8 @@ import adminRoutes from './routes/admin.routes';
 import customerRoutes from './routes/customer.routes';
 import paymentRoutes from './routes/payment.routes';
 import editorRoutes from './routes/editor.routes';
+import pricingRoutes from './routes/pricing.routes';
+import settingRoutes from './routes/setting.routes';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
@@ -55,6 +57,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/customer', customerRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/editor', editorRoutes);
+app.use('/api/pricing', pricingRoutes);
+app.use('/api/settings', settingRoutes);
 
 
 const PORT = process.env.PORT || 8000;

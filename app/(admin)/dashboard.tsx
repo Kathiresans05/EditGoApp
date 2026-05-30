@@ -10,7 +10,7 @@ import {
   Zap, ArrowUpRight, ArrowDownRight, BarChart3,
   Sparkles, ChevronRight, Globe, ShieldCheck, Map,
   Home, Wallet, Brain, Shield, BarChart,
-  ShoppingCart, User, Ticket, X, Menu
+  ShoppingCart, User, Ticket, X, Menu, Settings
 } from 'lucide-react-native';
 import Animated, { FadeInUp, FadeInRight, FadeIn, Layout } from 'react-native-reanimated';
 import { authService, adminService } from '../../src/services/api';
@@ -68,6 +68,7 @@ export default function AdminDashboard() {
     { name: 'Users', icon: Users, route: '/(admin)/users' },
     { name: 'Editors', icon: User, route: '/(admin)/editors' },
     { name: 'Complaints', icon: Ticket, route: '/(admin)/complaints' },
+    { name: 'Settings', icon: Settings, route: '/(admin)/settings' },
   ];
 
   return (
@@ -288,7 +289,7 @@ export default function AdminDashboard() {
           <View style={styles.mgmtRow}>
             <MgmtCard title="Promotions" icon={Zap} color="#EF4444" route="/(admin)/promotions" />
             <MgmtCard title="Support" icon={Globe} color="#3B82F6" route="/(admin)/complaints" />
-            <MgmtCard title="Reviews" icon={Search} color="#64748B" route="/(admin)/reviews" />
+            <MgmtCard title="Settings" icon={Settings} color="#0F172A" route="/(admin)/settings" />
           </View>
           <View style={styles.mgmtRow}>
             <MgmtCard title="Templates" icon={ShoppingBag} color="#A855F7" route="/(admin)/templates" />

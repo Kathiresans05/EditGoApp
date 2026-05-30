@@ -117,6 +117,7 @@ export default function CustomerLayout() {
       <Tabs.Screen name="privacy-settings" options={{ href: null }} />
       <Tabs.Screen name="report-issue" options={{ href: null }} />
       <Tabs.Screen name="checkout" options={{ href: null }} />
+      <Tabs.Screen name="profile-orders" options={{ href: null }} />
       <Tabs.Screen name="editor/[id]" options={{ href: null }} />
     </Tabs>
 

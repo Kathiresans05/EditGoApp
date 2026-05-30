@@ -271,11 +271,20 @@ export const uploadFinalVideo = [
       if (updatedOrder.editorId) {
         await updateEditorSuccessRate(updatedOrder.editorId);
         
-        // Earning Split Logic: 20% Platform, 80% Editor
+        // Earning Split Logic
         // Only credit the editor if the order wasn't ALREADY completed (prevents double payment on re-uploads)
         if (currentOrder?.status !== 'COMPLETED') {
           const orderPrice = currentOrder?.price || 0;
-          const editorEarning = orderPrice * 0.8; // 80% going to Editor
+          
+          let platformCommission = 20; // Default 20%
+          const commissionSetting = await prisma.systemSetting.findUnique({ where: { key: 'PLATFORM_COMMISSION' } });
+          if (commissionSetting && commissionSetting.value) {
+            const parsed = Number(commissionSetting.value);
+            if (!isNaN(parsed)) platformCommission = parsed;
+          }
+          
+          const editorEarningPct = (100 - platformCommission) / 100;
+          const editorEarning = orderPrice * editorEarningPct;
           
           if (editorEarning > 0) {
             await prisma.editor.update({

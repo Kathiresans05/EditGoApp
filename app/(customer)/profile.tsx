@@ -152,8 +152,8 @@ export default function ProfileScreen() {
           <MenuLink
             icon={<ShoppingCart size={18} color="#2E7D32" />}
             iconBg="#E8F5E9"
-            label="Checkout & Orders"
-            onPress={() => router.push('/(customer)/checkout')}
+            label="Order History"
+            onPress={() => router.push('/(customer)/profile-orders')}
           />
           <View style={styles.divider} />
           <MenuLink
@@ -171,7 +171,7 @@ export default function ProfileScreen() {
             <View style={styles.referLeft}>
               <Gift size={28} color="#FFF" />
               <View style={{ marginLeft: 12 }}>
-                <Text style={styles.referTitle}>Invite Friends & Get ₹20</Text>
+                <Text style={styles.referTitle}>Invite Friends & Get ₹{user?.settings?.REFERRAL_REWARD || '20'}</Text>
                 <Text style={styles.referSub}>Share your code to earn credits</Text>
               </View>
             </View>

@@ -25,14 +25,12 @@ const CATEGORY_PALETTES = [
 ];
 
 const DEFAULT_CATEGORIES = [
-  { id: '1', title: 'Reels Edit', icon: '🎬', price: 199 },
-  { id: '2', title: 'Wedding Film', icon: '💍', price: 999 },
-  { id: '3', title: 'YouTube Edit', icon: '▶️', price: 499 },
-  { id: '4', title: 'Short Film', icon: '🎞️', price: 799 },
-  { id: '5', title: 'AI Cinematic', icon: '✨', price: 599 },
-  { id: '6', title: 'Voice Over', icon: '🎙️', price: 299 },
-  { id: '7', title: 'Color Grade', icon: '🎨', price: 349 },
-  { id: '8', title: 'Thumbnail', icon: '🖼️', price: 149 },
+  { id: '1', title: 'Insta Reels', icon: '📱', price: 79 },
+  { id: '2', title: 'YT Shorts', icon: '🎥', price: 149 },
+  { id: '3', title: 'Cinematic', icon: '🎬', price: 299 },
+  { id: '4', title: 'Thumbnails', icon: '🖼️', price: 79 },
+  { id: '5', title: 'AI Style', icon: '🤖', price: 199 },
+  { id: '6', title: 'Slow Motion', icon: '❄️', price: 129 },
 ];
 
 export default function CustomerHome() {
