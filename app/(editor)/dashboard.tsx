@@ -13,6 +13,9 @@ import { useRouter } from 'expo-router';
 import api, { authService, orderService, editorService } from '../../src/services/api';
 import { Audio, Video, ResizeMode } from 'expo-av';
 import * as SecureStore from 'expo-secure-store';
+import ChatModal from '../../src/components/ChatModal';
+import LiveStreamModal from '../../src/components/LiveStreamModal';
+import { useIsFocused } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
@@ -37,6 +40,10 @@ export default function EditorDashboard() {
   const [videoModalVisible, setVideoModalVisible] = useState(false);
   const [selectedVideoUrl, setSelectedVideoUrl] = useState('');
   const [selectedVideoTitle, setSelectedVideoTitle] = useState('');
+  const [showStream, setShowStream] = useState(false);
+  const [isIncomingCall, setIsIncomingCall] = useState(false);
+  const [incomingCallData, setIncomingCallData] = useState<any>(null);
+  const isFocused = useIsFocused();
   const soundRef = React.useRef<any>(null);
   const ignoredRequestsRef = React.useRef<string[]>([]);
 
@@ -421,6 +428,34 @@ export default function EditorDashboard() {
           </Animated.View>
         </View>
       </Modal>
+
+      {/* Global Background Call Listener for Active Jobs */}
+      {isFocused && user && activeJobs.map(job => (
+        <ChatModal 
+          key={job.id}
+          visible={false} 
+          onClose={() => {}} 
+          orderId={job.id} 
+          currentUser={user} 
+          onIncomingCall={() => { 
+            setIncomingCallData(job);
+            setIsIncomingCall(true); 
+            setShowStream(true); 
+          }} 
+        />
+      ))}
+
+      {showStream && user && incomingCallData && (
+        <LiveStreamModal 
+          visible={showStream} 
+          onClose={() => setShowStream(false)} 
+          roomId={`EditGo-Order-${incomingCallData.id}`}
+          orderId={incomingCallData.id}
+          currentUser={user}
+          recipientName={incomingCallData.customer?.name || 'Client'}
+          isIncoming={isIncomingCall}
+        />
+      )}
     </ScrollView>
   );
 }

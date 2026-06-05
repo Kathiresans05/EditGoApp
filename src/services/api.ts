@@ -5,24 +5,7 @@ import Constants from 'expo-constants';
 
 // Default URLs
 const getDebuggerHost = () => {
-  // Try getting from expoConfig
-  let hostUri = Constants.expoConfig?.hostUri;
-  
-  // If not there, try manifest (for older versions/certain builds)
-  if (!hostUri && (Constants as any).manifest) {
-    hostUri = (Constants as any).manifest.debuggerHost;
-  }
-
-  if (!hostUri) {
-    console.log('[API] No hostUri found in Constants');
-    return null;
-  }
-  
-  // hostUri is usually something like "192.168.1.7:8081"
-  const ip = hostUri.split(':')[0];
-  const url = `http://${ip}:8000/api`;
-  console.log('[API] Detected Backend URL:', url);
-  return url;
+  return null; // Force PROD for both so sockets connect
 };
 
 const PROD_URL = 'https://editgoapp.onrender.com/api';

@@ -12,7 +12,10 @@ import { customerService } from '../../src/services/api';
 
 const { width } = Dimensions.get('window');
 
-// 8 pastel colors for the category grid (like Naukri)
+import ChatModal from '../../src/components/ChatModal';
+import LiveStreamModal from '../../src/components/LiveStreamModal';
+import { useIsFocused } from '@react-navigation/native';
+
 const CATEGORY_PALETTES = [
   { bg: '#E8F5E9', icon: '#4CAF50' }, // green
   { bg: '#EDE7F6', icon: '#7C3AED' }, // purple
@@ -38,6 +41,9 @@ export default function CustomerHome() {
   const [data, setData] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
+  const [showStream, setShowStream] = React.useState(false);
+  const [isIncomingCall, setIsIncomingCall] = React.useState(false);
+  const isFocused = useIsFocused();
 
   const fetchHomeData = async () => {
     try {
@@ -228,6 +234,29 @@ export default function CustomerHome() {
 
         <View style={{ height: 110 }} />
       </ScrollView>
+
+      {/* Global Background Call Listener for Active Order */}
+      {isFocused && data?.activeOrder && data?.user && (
+        <ChatModal 
+          visible={false} 
+          onClose={() => {}} 
+          orderId={data.activeOrder.id} 
+          currentUser={data.user} 
+          onIncomingCall={() => { setIsIncomingCall(true); setShowStream(true); }} 
+        />
+      )}
+
+      {showStream && data?.user && data?.activeOrder && (
+        <LiveStreamModal 
+          visible={showStream} 
+          onClose={() => setShowStream(false)} 
+          roomId={`EditGo-Order-${data.activeOrder.id}`}
+          orderId={data.activeOrder.id}
+          currentUser={data.user}
+          recipientName={data.activeOrder.editor?.user?.name || 'Editor'}
+          isIncoming={isIncomingCall}
+        />
+      )}
     </View>
   );
 }

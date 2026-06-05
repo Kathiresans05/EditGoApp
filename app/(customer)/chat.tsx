@@ -7,8 +7,8 @@ import { Send, ChevronLeft, Phone, MoreVertical, MessageSquare } from 'lucide-re
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import io from 'socket.io-client';
-import { WebView } from 'react-native-webview';
 import { authService, BASE_URL } from '../../src/services/api';
+import LiveStreamModal from '../../src/components/LiveStreamModal';
 
 const SOCKET_URL = BASE_URL.replace('/api', '');
 
@@ -20,6 +20,7 @@ export default function ChatScreen() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isCalling, setIsCalling] = useState(false);
+  const [isIncomingCall, setIsIncomingCall] = useState(false);
   const [editorOnline, setEditorOnline] = useState(false);
   const socketRef = useRef<any>(null);
   const flatListRef = useRef<any>(null);
@@ -43,6 +44,11 @@ export default function ChatScreen() {
         });
 
         socketRef.current.on('receive_message', (data: any) => {
+          if (data.message === '__CALL_RINGING__') {
+            setIsIncomingCall(true);
+            setIsCalling(true);
+            return;
+          }
           setMessages(prev => [...prev, {
             id: Date.now().toString(),
             text: data.message,
@@ -106,22 +112,23 @@ export default function ChatScreen() {
             </View>
           </View>
 
-          <TouchableOpacity style={[styles.callBtn, isCalling && { backgroundColor: '#EF4444' }]} onPress={() => setIsCalling(!isCalling)}>
+          <TouchableOpacity style={[styles.callBtn, isCalling && { backgroundColor: '#EF4444' }]} onPress={() => { setIsIncomingCall(false); setIsCalling(true); }}>
             <Phone size={18} color="#FFF" />
           </TouchableOpacity>
         </View>
       </LinearGradient>
 
       {/* Video Call View */}
-      {isCalling && (
-        <View style={{ height: 280, backgroundColor: '#000' }}>
-          <WebView
-            source={{ uri: `https://meet.ffmuc.net/Editgo_${orderId}#config.disableDeepLinking=true` }}
-            style={{ flex: 1 }}
-            allowsInlineMediaPlayback
-            mediaPlaybackRequiresUserAction={false}
-          />
-        </View>
+      {isCalling && currentUser && (
+        <LiveStreamModal 
+          visible={isCalling} 
+          onClose={() => setIsCalling(false)} 
+          roomId={`EditGo-Order-${orderId}`}
+          orderId={orderId as string}
+          currentUser={currentUser}
+          recipientName={editorName as string || 'Editor'}
+          isIncoming={isIncomingCall}
+        />
       )}
 
       {/* Messages */}

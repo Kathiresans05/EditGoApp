@@ -1,34 +1,69 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
-import { X, Send, User, MessageSquare } from 'lucide-react-native';
+import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator, Linking } from 'react-native';
+import { X, Send, User, MessageSquare, Phone } from 'lucide-react-native';
 import { GlassCard } from './ui/GlassCard';
 import { LinearGradient } from 'expo-linear-gradient';
 import io from 'socket.io-client';
 import { BASE_URL } from '../services/api';
 
-const SOCKET_URL = BASE_URL.replace('/api', '');
-
-export default function ChatModal({ visible, onClose, orderId, currentUser }: any) {
+export default function ChatModal({ visible, onClose, orderId, currentUser, recipientName, onNewMessage, recipientPhone, onCallPress, onIncomingCall }: any) {
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const socketRef = useRef<any>(null);
   const flatListRef = useRef<any>(null);
+  const visibleRef = useRef(visible);
 
   useEffect(() => {
-    if (visible && orderId) {
+    visibleRef.current = visible;
+  }, [visible]);
+
+  useEffect(() => {
+    if (orderId) {
       // Connect socket
-      socketRef.current = io(SOCKET_URL);
+      const socketUrl = BASE_URL.replace('/api', '');
+      socketRef.current = io(socketUrl);
       
-      socketRef.current.emit('join_order', orderId);
+      socketRef.current.on('connect', () => {
+        socketRef.current.emit('join_order', orderId);
+      });
       
       socketRef.current.on('receive_message', (data: any) => {
-        setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          text: data.message,
-          senderId: data.senderId,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }]);
+        console.log('[ChatModal] receive_message event received!', data);
+        console.log('[ChatModal] Current User ID:', currentUser?.id);
+        
+        // Always process system call signals
+        if (data.message === '__CALL_RINGING__') {
+          console.log('[ChatModal] Processing __CALL_RINGING__. Condition: ', data.senderId, '!==', currentUser?.id, ' => ', data.senderId !== currentUser?.id);
+          if (data.senderId !== currentUser.id) { 
+            console.log('[ChatModal] Firing onIncomingCall!');
+            if (onIncomingCall) onIncomingCall();
+          }
+          return;
+        }
+        if (data.message === '__CALL_ACCEPTED__' || data.message === '__CALL_DECLINED__' || data.message === '__CALL_ENDED__') {
+          return;
+        }
+
+        // Prevent adding duplicate chat messages from self if optimistic updates are used
+        if (data.senderId !== currentUser.id) {
+          setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            text: data.message,
+            senderId: data.senderId,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }]);
+          
+          if (!visibleRef.current && onNewMessage) {
+            onNewMessage();
+          }
+        }
+      });
+
+      socketRef.current.on('incoming_call', (data: any) => {
+        if (data.senderId !== currentUser.id && onIncomingCall) {
+          onIncomingCall();
+        }
       });
 
       setLoading(false);
@@ -36,10 +71,11 @@ export default function ChatModal({ visible, onClose, orderId, currentUser }: an
       return () => {
         if (socketRef.current) {
           socketRef.current.disconnect();
+          socketRef.current = null;
         }
       };
     }
-  }, [visible, orderId]);
+  }, [orderId]);
 
   const handleSend = () => {
     if (!inputText.trim()) return;
@@ -74,12 +110,24 @@ export default function ChatModal({ visible, onClose, orderId, currentUser }: an
           <LinearGradient colors={['#8B5CF6', '#6366F1']} style={styles.header}>
             <View style={styles.headerRow}>
               <View style={styles.headerInfo}>
-                <MessageSquare size={20} color="#FFF" />
-                <Text style={styles.headerTitle}>Studio Chat</Text>
+                <View style={styles.headerAvatar}>
+                  <User size={20} color="#FFF" />
+                </View>
+                <View>
+                  <Text style={styles.headerTitle}>{recipientName || "Studio Chat"}</Text>
+                  {recipientName && <Text style={styles.headerSubtitle}>Active now</Text>}
+                </View>
               </View>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                <X size={24} color="#FFF" />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                {(recipientPhone || onCallPress) && (
+                  <TouchableOpacity onPress={() => onCallPress ? onCallPress() : (recipientPhone ? Linking.openURL(`tel:${recipientPhone}`) : null)} style={styles.closeBtn}>
+                    <Phone size={20} color="#FFF" />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                  <X size={24} color="#FFF" />
+                </TouchableOpacity>
+              </View>
             </View>
           </LinearGradient>
 
@@ -147,8 +195,10 @@ const styles = StyleSheet.create({
   container: { height: '80%', backgroundColor: '#FFF', borderTopLeftRadius: 32, borderTopRightRadius: 32, overflow: 'hidden' },
   header: { padding: 24, paddingBottom: 20 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerInfo: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   headerTitle: { color: '#FFF', fontSize: 18, fontWeight: '900' },
+  headerSubtitle: { color: '#E2E8F0', fontSize: 12, fontWeight: '600' },
   closeBtn: { padding: 4 },
   messageList: { padding: 20, paddingBottom: 40 },
   messageRow: { marginBottom: 16, flexDirection: 'row', alignItems: 'flex-end' },

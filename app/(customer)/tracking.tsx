@@ -33,7 +33,9 @@ export default function TrackingScreen() {
   const [paymentStep, setPaymentStep] = useState(1); // 1: Methods, 1.5: PIN, 2: Processing, 3: Success
   const [upiPin, setUpiPin] = useState('');
   const [showChat, setShowChat] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
   const [showStream, setShowStream] = useState(false);
+  const [isIncomingCall, setIsIncomingCall] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showReview, setShowReview] = useState(false);
   const [rating, setRating] = useState(5);
@@ -284,10 +286,13 @@ export default function TrackingScreen() {
                   </View>
                 </TouchableOpacity>
                 <View style={styles.contactActions}>
-                  <TouchableOpacity style={[styles.contactBtn, { backgroundColor: '#EDE7F6' }]} onPress={() => setShowChat(true)}>
-                    <MessageSquare size={18} color="#7C3AED" />
+                  <TouchableOpacity style={[styles.contactBtn, { backgroundColor: '#EDE7F6' }]} onPress={() => { setShowChat(true); setHasUnread(false); }}>
+                    <View>
+                      <MessageSquare size={18} color="#7C3AED" />
+                      {hasUnread && <View style={{ position: 'absolute', top: -2, right: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' }} />}
+                    </View>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.contactBtn, { backgroundColor: '#E8F5E9' }]} onPress={() => safeOpenURL(`tel:${editor?.user?.phone}`)}>
+                  <TouchableOpacity style={[styles.contactBtn, { backgroundColor: '#E8F5E9' }]} onPress={() => { setIsIncomingCall(false); setShowStream(true); }}>
                     <Phone size={18} color="#2E7D32" />
                   </TouchableOpacity>
                 </View>
@@ -556,7 +561,7 @@ export default function TrackingScreen() {
 
       {/* Chat Modal */}
       {currentUser && (
-        <ChatModal visible={showChat} onClose={() => setShowChat(false)} orderId={id} currentUser={currentUser} />
+        <ChatModal visible={showChat} onClose={() => setShowChat(false)} orderId={id} currentUser={currentUser} recipientName={order?.editor?.user?.name} onNewMessage={() => setHasUnread(true)} recipientPhone={order?.editor?.user?.phone} onCallPress={() => { setShowChat(false); setIsIncomingCall(false); setShowStream(true); }} onIncomingCall={() => { setShowChat(false); setIsIncomingCall(true); setShowStream(true); }} />
       )}
 
       {/* Review Modal */}
@@ -634,8 +639,10 @@ export default function TrackingScreen() {
           visible={showStream} 
           onClose={() => setShowStream(false)} 
           roomId={`EditGo-Order-${order.id}`}
-          orderId={order.id}
+          orderId={id as string}
           currentUser={currentUser}
+          recipientName={order?.editor?.user?.name}
+          isIncoming={isIncomingCall}
         />
       )}
     </View>

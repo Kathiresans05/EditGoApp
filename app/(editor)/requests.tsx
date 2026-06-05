@@ -38,7 +38,9 @@ export default function RequestsScreen() {
   const [finalVideoUrl, setFinalVideoUrl] = useState('');
   const [isOnline, setIsOnline] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
   const [showStream, setShowStream] = useState(false);
+  const [isIncomingCall, setIsIncomingCall] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<number|null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
@@ -375,10 +377,13 @@ export default function RequestsScreen() {
                     <Text style={s.clientCardRole}>Client · Premium Member</Text>
                   </View>
                   <View style={s.contactBtns}>
-                    <TouchableOpacity style={[s.contactBtn,{backgroundColor:'#EDE7F6'}]} onPress={()=>setShowChat(true)}>
-                      <MessageSquare size={18} color="#4F46E5" />
+                    <TouchableOpacity style={[s.contactBtn,{backgroundColor:'#EDE7F6'}]} onPress={() => { setShowChat(true); setHasUnread(false); }}>
+                      <View>
+                        <MessageSquare size={18} color="#4F46E5" />
+                        {hasUnread && <View style={{ position: 'absolute', top: -2, right: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' }} />}
+                      </View>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[s.contactBtn,{backgroundColor:'#E8F5E9'}]} onPress={()=>openURL(`tel:${selectedJob.customer?.phone}`)}>
+                    <TouchableOpacity style={[s.contactBtn,{backgroundColor:'#E8F5E9'}]} onPress={() => { setIsIncomingCall(false); setShowStream(true); }}>
                       <Phone size={18} color="#2E7D32" />
                     </TouchableOpacity>
                   </View>
@@ -568,8 +573,24 @@ export default function RequestsScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Global Background Call Listener for Assigned Orders */}
+      {currentUser && assignedOrders.map((job: any) => (
+        <ChatModal 
+          key={`bg-${job.id}`}
+          visible={false} 
+          onClose={() => {}} 
+          orderId={job.id} 
+          currentUser={currentUser} 
+          onIncomingCall={() => { 
+            setSelectedJob(job);
+            setIsIncomingCall(true); 
+            setShowStream(true); 
+          }} 
+        />
+      ))}
+
       {currentUser && selectedJob && (
-        <ChatModal visible={showChat} onClose={()=>setShowChat(false)} orderId={selectedJob.id} currentUser={currentUser} />
+        <ChatModal visible={showChat} onClose={()=>setShowChat(false)} orderId={selectedJob.id} currentUser={currentUser} recipientName={selectedJob.customer?.name} onNewMessage={() => setHasUnread(true)} recipientPhone={selectedJob.customer?.phone} onCallPress={() => { setShowChat(false); setIsIncomingCall(false); setShowStream(true); }} onIncomingCall={() => { setShowChat(false); setIsIncomingCall(true); setShowStream(true); }} />
       )}
       
       {selectedJob && currentUser && (
@@ -579,6 +600,8 @@ export default function RequestsScreen() {
           roomId={`EditGo-Order-${selectedJob.id}`} 
           orderId={selectedJob.id}
           currentUser={currentUser}
+          recipientName={selectedJob.customer?.name}
+          isIncoming={isIncomingCall}
         />
       )}
     </View>

@@ -40,7 +40,14 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "Allow EditGo to access your camera for video calling.",
+          "microphonePermission": "Allow EditGo to access your microphone for voice calling."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

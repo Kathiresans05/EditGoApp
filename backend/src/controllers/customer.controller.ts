@@ -46,6 +46,7 @@ export const getHomeData = async (req: AuthRequest, res: Response) => {
 
     res.status(200).json({
       user: {
+        id: user.id,
         name: user.name || 'Creator',
         plan: user.plan,
         level: user.editorProfile?.level || 'Beginner Creator',
