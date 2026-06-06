@@ -237,7 +237,10 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
         if (data.message === '__CALL_ACCEPTED__') {
           setCallStatus('connected');
           setCallDuration(0);
-          startWebRTC();
+          // Only the caller (initiator) should start WebRTC offer
+          if (!isIncoming) {
+            startWebRTC();
+          }
           return;
         }
         if (data.message === '__CALL_DECLINED__') {
