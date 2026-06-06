@@ -52,6 +52,30 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
   const timerRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  const localStreamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    localStreamRef.current = localStream;
+  }, [localStream]);
+
+  // Configure audio session and speaker route for WebRTC call
+  useEffect(() => {
+    if (callStatus === 'connected') {
+      Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        shouldRouteThroughEarpieceAndroid: !isSpeaker,
+        playThroughEarpieceAndroid: !isSpeaker,
+      }).catch(err => console.log('Error setting audio mode for call:', err));
+    } else if (callStatus === 'ended') {
+      Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        shouldRouteThroughEarpieceAndroid: true,
+      }).catch(err => console.log('Error restoring audio mode:', err));
+    }
+  }, [callStatus, isSpeaker]);
+
   // Init local stream
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -132,8 +156,9 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
   const setupPeerConnection = (stream: MediaStream | null) => {
     const pc = new RTCPeerConnection(configuration);
     
-    if (stream) {
-      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+    const activeStream = stream || localStreamRef.current;
+    if (activeStream) {
+      activeStream.getTracks().forEach((track) => pc.addTrack(track, activeStream));
     }
 
     pc.ontrack = (event) => {
@@ -157,7 +182,7 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
   };
 
   const startWebRTC = async () => {
-    const pc = setupPeerConnection(localStream);
+    const pc = setupPeerConnection(localStreamRef.current);
     try {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
@@ -216,7 +241,7 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
       // WebRTC Listeners
       socketRef.current.on('webrtc_offer', async (data: any) => {
         if (data.senderId !== currentUser.id) {
-          const pc = setupPeerConnection(localStream);
+          const pc = setupPeerConnection(localStreamRef.current);
           try {
             await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
             const answer = await pc.createAnswer();
@@ -262,7 +287,7 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
       setCallStatus('ringing');
       setCallDuration(0);
     }
-  }, [visible, orderId, currentUser, isIncoming, localStream]);
+  }, [visible, orderId, currentUser, isIncoming]);
 
   const handleSend = () => {
     if (!inputText.trim() || !socketRef.current) return;
