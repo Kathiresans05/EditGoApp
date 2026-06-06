@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Modal, StyleSheet, TouchableOpacity, SafeAreaView, Platform, Text, TextInput, FlatList, KeyboardAvoidingView, Animated } from 'react-native';
+import { View, Modal, StyleSheet, TouchableOpacity, SafeAreaView, Platform, Text, TextInput, FlatList, KeyboardAvoidingView, Animated, PermissionsAndroid } from 'react-native';
 import { X, Send, Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, User } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -64,14 +64,15 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
       Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
-        shouldRouteThroughEarpieceAndroid: !isSpeaker,
         playThroughEarpieceAndroid: !isSpeaker,
+        staysActiveInBackground: true,
       }).catch(err => console.log('Error setting audio mode for call:', err));
     } else if (callStatus === 'ended') {
       Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
-        shouldRouteThroughEarpieceAndroid: true,
+        playThroughEarpieceAndroid: true,
+        staysActiveInBackground: false,
       }).catch(err => console.log('Error restoring audio mode:', err));
     }
   }, [callStatus, isSpeaker]);
@@ -79,16 +80,39 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
   // Init local stream
   useEffect(() => {
     let stream: MediaStream | null = null;
-    if (visible) {
-      mediaDevices.getUserMedia({
-        audio: true,
-        video: false, // Start with audio only for P2P calling
-      }).then(s => {
+
+    const initLocalStream = async () => {
+      if (Platform.OS === 'android') {
+        try {
+          const granted = await PermissionsAndroid.requestMultiple([
+            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+            PermissionsAndroid.PERMISSIONS.CAMERA,
+          ]);
+          if (
+            granted['android.permission.RECORD_AUDIO'] !== PermissionsAndroid.RESULTS.GRANTED ||
+            granted['android.permission.CAMERA'] !== PermissionsAndroid.RESULTS.GRANTED
+          ) {
+            console.warn("Permissions not granted");
+          }
+        } catch (err) {
+          console.warn(err);
+        }
+      }
+
+      try {
+        const s = await mediaDevices.getUserMedia({
+          audio: true,
+          video: false, // Start with audio only for P2P calling
+        });
         setLocalStream(s);
         stream = s;
-      }).catch(err => {
+      } catch (err) {
         console.error("Failed to get local stream", err);
-      });
+      }
+    };
+
+    if (visible) {
+      initLocalStream();
     }
 
     return () => {
