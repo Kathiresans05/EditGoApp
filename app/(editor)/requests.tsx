@@ -172,7 +172,7 @@ export default function RequestsScreen() {
     if (selectedJob && (selectedJob.progress || 0) < 99) {
       Alert.alert(
         'Not Allowed', 
-        'You must reach 99% progress (finish drafts & live stream) before delivering the final output.'
+        'You must reach 99% progress (finish demo preview & live stream) before delivering the final output.'
       );
       return;
     }

@@ -306,8 +306,8 @@ export default function TrackingScreen() {
             </Animated.View>
           )}
 
-          {/* Draft Previews */}
-          <Text style={styles.sectionTitle}>Draft Previews ({(order.previews || []).length}/3)</Text>
+          {/* Demo Previews */}
+          <Text style={styles.sectionTitle}>Demo Previews ({(order.previews || []).length})</Text>
           {(order.previews || []).length > 0 ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
               {order.previews.map((p: string, i: number) => (
@@ -315,14 +315,14 @@ export default function TrackingScreen() {
                   <View style={styles.previewThumb}>
                     <Play size={20} color="#FFF" fill="#FFF" />
                   </View>
-                  <Text style={styles.previewLabel}>Draft v{i + 1}</Text>
+                  <Text style={styles.previewLabel}>Demo Preview v{i + 1}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           ) : (
             <View style={styles.emptyCard}>
               <Clock size={20} color="#94A3B8" />
-              <Text style={styles.emptyText}>Editor is working on your first draft...</Text>
+              <Text style={styles.emptyText}>Editor is working on your first demo preview...</Text>
             </View>
           )}
 
