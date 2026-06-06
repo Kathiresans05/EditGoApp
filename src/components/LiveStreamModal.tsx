@@ -102,10 +102,44 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
       }
 
       try {
-        const s = await mediaDevices.getUserMedia({
-          audio: true,
-          video: false, // Start with audio only for P2P calling
-        });
+        const isEditor = currentUser?.role === 'EDITOR';
+        let s: any = null;
+        
+        if (isEditor) {
+          console.log('[LiveStream] User is EDITOR. Initializing microphone...');
+          const audioStream = await mediaDevices.getUserMedia({ audio: true, video: false });
+          s = audioStream;
+          
+          try {
+            console.log('[LiveStream] Attempting to capture screen share...');
+            const videoStream = await mediaDevices.getDisplayMedia();
+            if (videoStream) {
+              videoStream.getVideoTracks().forEach(track => {
+                s.addTrack(track);
+              });
+              console.log('[LiveStream] Screen track combined successfully!');
+            }
+          } catch (e) {
+            console.log('[LiveStream] Screen share failed, trying camera fallback:', e);
+            try {
+              const cameraStream = await mediaDevices.getUserMedia({ audio: false, video: true });
+              if (cameraStream) {
+                cameraStream.getVideoTracks().forEach(track => {
+                  s.addTrack(track);
+                });
+              }
+            } catch (err2) {
+              console.log('[LiveStream] Camera capture fallback failed:', err2);
+            }
+          }
+        } else {
+          console.log('[LiveStream] User is CUSTOMER. Standard audio-only capture...');
+          s = await mediaDevices.getUserMedia({
+            audio: true,
+            video: false,
+          });
+        }
+        
         setLocalStream(s);
         stream = s;
       } catch (err) {
@@ -384,15 +418,22 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
 
   if (!visible) return null;
 
+  const hasRemoteVideo = remoteStream && remoteStream.getVideoTracks().length > 0;
+  const hasLocalVideo = localStream && localStream.getVideoTracks().length > 0;
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleEndCall}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <LinearGradient colors={['#1e1b4b', '#312e81', '#1e1b4b']} style={styles.container}>
           <SafeAreaView style={styles.safeArea}>
             
-            {/* Hidden RTC View for remote audio playback */}
+            {/* Fullscreen/Hidden RTC View */}
             {remoteStream && (
-              <RTCView streamURL={remoteStream.toURL()} style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }} />
+              <RTCView 
+                streamURL={remoteStream.toURL()} 
+                style={hasRemoteVideo ? styles.fullscreenVideo : { position: 'absolute', width: 1, height: 1, opacity: 0 }} 
+                objectFit="contain"
+              />
             )}
 
             {/* Header */}
@@ -407,22 +448,46 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
             </View>
 
             {/* Call Info / Avatar Area */}
-            <View style={styles.callInfoArea}>
-              <Animated.View style={[styles.avatarContainer, callStatus === 'ringing' && { transform: [{ scale: pulseAnim }] }]}>
-                <LinearGradient colors={['#8B5CF6', '#4F46E5']} style={styles.avatarGradient}>
-                  <Text style={styles.avatarText}>{(recipientName || 'E').substring(0, 1).toUpperCase()}</Text>
-                </LinearGradient>
-              </Animated.View>
-              
-              <Text style={styles.callerName}>{recipientName || 'Edit Go User'}</Text>
-              <Text style={styles.callStatusText}>
-                {callStatus === 'ringing' 
-                  ? (isIncoming ? 'Incoming Call...' : 'Calling...') 
-                  : callStatus === 'ended' 
-                    ? 'Call Ended' 
-                    : formatTime(callDuration)}
-              </Text>
-            </View>
+            {!hasRemoteVideo && !hasLocalVideo && (
+              <View style={styles.callInfoArea}>
+                <Animated.View style={[styles.avatarContainer, callStatus === 'ringing' && { transform: [{ scale: pulseAnim }] }]}>
+                  <LinearGradient colors={['#8B5CF6', '#4F46E5']} style={styles.avatarGradient}>
+                    <Text style={styles.avatarText}>{(recipientName || 'E').substring(0, 1).toUpperCase()}</Text>
+                  </LinearGradient>
+                </Animated.View>
+                
+                <Text style={styles.callerName}>{recipientName || 'Edit Go User'}</Text>
+                <Text style={styles.callStatusText}>
+                  {callStatus === 'ringing' 
+                    ? (isIncoming ? 'Incoming Call...' : 'Calling...') 
+                    : callStatus === 'ended' 
+                      ? 'Call Ended' 
+                      : formatTime(callDuration)}
+                </Text>
+              </View>
+            )}
+
+            {/* Screen Share Status for Editor */}
+            {hasLocalVideo && !hasRemoteVideo && (
+              <View style={styles.callInfoArea}>
+                <View style={styles.screenShareCard}>
+                  <Text style={styles.screenShareTitle}>📺 Screen Sharing Active</Text>
+                  <Text style={styles.screenShareSub}>Your screen is being broadcasted live to the customer.</Text>
+                </View>
+                <Text style={styles.callStatusText}>
+                  {formatTime(callDuration)}
+                </Text>
+              </View>
+            )}
+
+            {/* Video overlay duration badge for Customer when video is active */}
+            {hasRemoteVideo && (
+              <View style={styles.videoInfoArea}>
+                <View style={styles.durationOverlay}>
+                  <Text style={styles.durationText}>{formatTime(callDuration)}</Text>
+                </View>
+              </View>
+            )}
 
             {/* In-Call Controls */}
             {callStatus === 'ringing' && isIncoming ? (
@@ -498,6 +563,54 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
 }
 
 const styles = StyleSheet.create({
+  fullscreenVideo: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#0a0a16',
+  },
+  screenShareCard: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 20,
+    padding: 24,
+    marginHorizontal: 30,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    marginBottom: 20,
+  },
+  screenShareTitle: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  screenShareSub: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  videoInfoArea: {
+    flex: 1,
+    justifyContent: 'flex-start',
+    alignItems: 'flex-end',
+    padding: 20,
+  },
+  durationOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    marginTop: 10,
+  },
+  durationText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   container: { flex: 1 },
   safeArea: { flex: 1, paddingTop: Platform.OS === 'android' ? 40 : 0 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10 },
