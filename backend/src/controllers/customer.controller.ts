@@ -24,6 +24,18 @@ export const getHomeData = async (req: AuthRequest, res: Response) => {
         customerId: userId,
         status: { not: 'COMPLETED' }
       },
+      include: {
+        editor: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                avatar: true,
+              }
+            }
+          }
+        }
+      },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -58,6 +70,12 @@ export const getHomeData = async (req: AuthRequest, res: Response) => {
         status: activeOrder.status,
         progress: activeOrder.progress,
         timeRemaining: '12 mins left', // Mock for now
+        editor: activeOrder.editor ? {
+          user: {
+            name: activeOrder.editor.user.name || 'Expert Editor',
+            avatar: activeOrder.editor.user.avatar,
+          }
+        } : null,
       } : null,
       categories
     });

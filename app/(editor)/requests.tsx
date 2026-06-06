@@ -41,6 +41,7 @@ export default function RequestsScreen() {
   const [hasUnread, setHasUnread] = useState(false);
   const [showStream, setShowStream] = useState(false);
   const [isIncomingCall, setIsIncomingCall] = useState(false);
+  const [incomingCallerName, setIncomingCallerName] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number|null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
@@ -135,6 +136,7 @@ export default function RequestsScreen() {
 
   const handleStreamClose = () => {
     setShowStream(false);
+    setIncomingCallerName(null);
     if (selectedJob && selectedJob.progress === 90) {
       Alert.alert(
         'Live Stream Ended',
@@ -581,16 +583,17 @@ export default function RequestsScreen() {
           onClose={() => {}} 
           orderId={job.id} 
           currentUser={currentUser} 
-          onIncomingCall={() => { 
+          onIncomingCall={(callerName?: string) => { 
             setSelectedJob(job);
             setIsIncomingCall(true); 
             setShowStream(true); 
+            if (callerName) setIncomingCallerName(callerName);
           }} 
         />
       ))}
 
       {currentUser && selectedJob && (
-        <ChatModal visible={showChat} onClose={()=>setShowChat(false)} orderId={selectedJob.id} currentUser={currentUser} recipientName={selectedJob.customer?.name} onNewMessage={() => setHasUnread(true)} recipientPhone={selectedJob.customer?.phone} onCallPress={() => { setShowChat(false); setIsIncomingCall(false); setShowStream(true); }} onIncomingCall={() => { setShowChat(false); setIsIncomingCall(true); setShowStream(true); }} />
+        <ChatModal visible={showChat} onClose={()=>setShowChat(false)} orderId={selectedJob.id} currentUser={currentUser} recipientName={selectedJob.customer?.name} onNewMessage={() => setHasUnread(true)} recipientPhone={selectedJob.customer?.phone} onCallPress={() => { setShowChat(false); setIsIncomingCall(false); setShowStream(true); }} onIncomingCall={(callerName?: string) => { setShowChat(false); setIsIncomingCall(true); setShowStream(true); if (callerName) setIncomingCallerName(callerName); }} />
       )}
       
       {selectedJob && currentUser && (
@@ -600,7 +603,7 @@ export default function RequestsScreen() {
           roomId={`EditGo-Order-${selectedJob.id}`} 
           orderId={selectedJob.id}
           currentUser={currentUser}
-          recipientName={selectedJob.customer?.name}
+          recipientName={incomingCallerName || selectedJob.customer?.name}
           isIncoming={isIncomingCall}
         />
       )}

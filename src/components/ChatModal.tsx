@@ -36,8 +36,8 @@ export default function ChatModal({ visible, onClose, orderId, currentUser, reci
         if (data.message === '__CALL_RINGING__') {
           console.log('[ChatModal] Processing __CALL_RINGING__. Condition: ', data.senderId, '!==', currentUser?.id, ' => ', data.senderId !== currentUser?.id);
           if (data.senderId !== currentUser.id) { 
-            console.log('[ChatModal] Firing onIncomingCall!');
-            if (onIncomingCall) onIncomingCall();
+            console.log('[ChatModal] Firing onIncomingCall with caller name:', data.senderName);
+            if (onIncomingCall) onIncomingCall(data.senderName);
           }
           return;
         }
@@ -62,7 +62,7 @@ export default function ChatModal({ visible, onClose, orderId, currentUser, reci
 
       socketRef.current.on('incoming_call', (data: any) => {
         if (data.senderId !== currentUser.id && onIncomingCall) {
-          onIncomingCall();
+          onIncomingCall(data.senderName);
         }
       });
 

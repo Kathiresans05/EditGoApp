@@ -43,6 +43,7 @@ export default function EditorDashboard() {
   const [showStream, setShowStream] = useState(false);
   const [isIncomingCall, setIsIncomingCall] = useState(false);
   const [incomingCallData, setIncomingCallData] = useState<any>(null);
+  const [incomingCallerName, setIncomingCallerName] = useState<string | null>(null);
   const isFocused = useIsFocused();
   const soundRef = React.useRef<any>(null);
   const ignoredRequestsRef = React.useRef<string[]>([]);
@@ -437,10 +438,11 @@ export default function EditorDashboard() {
           onClose={() => {}} 
           orderId={job.id} 
           currentUser={user} 
-          onIncomingCall={() => { 
+          onIncomingCall={(callerName?: string) => { 
             setIncomingCallData(job);
             setIsIncomingCall(true); 
             setShowStream(true); 
+            if (callerName) setIncomingCallerName(callerName);
           }} 
         />
       ))}
@@ -448,11 +450,11 @@ export default function EditorDashboard() {
       {showStream && user && incomingCallData && (
         <LiveStreamModal 
           visible={showStream} 
-          onClose={() => setShowStream(false)} 
+          onClose={() => { setShowStream(false); setIncomingCallerName(null); }} 
           roomId={`EditGo-Order-${incomingCallData.id}`}
           orderId={incomingCallData.id}
           currentUser={user}
-          recipientName={incomingCallData.customer?.name || 'Client'}
+          recipientName={incomingCallerName || incomingCallData.customer?.name || 'Client'}
           isIncoming={isIncomingCall}
         />
       )}

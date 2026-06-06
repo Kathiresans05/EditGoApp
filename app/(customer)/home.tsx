@@ -42,6 +42,7 @@ export default function CustomerHome() {
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [showStream, setShowStream] = React.useState(false);
+  const [incomingCallerName, setIncomingCallerName] = React.useState<string | null>(null);
   const [isIncomingCall, setIsIncomingCall] = React.useState(false);
   const isFocused = useIsFocused();
 
@@ -242,18 +243,22 @@ export default function CustomerHome() {
           onClose={() => {}} 
           orderId={data.activeOrder.id} 
           currentUser={data.user} 
-          onIncomingCall={() => { setIsIncomingCall(true); setShowStream(true); }} 
+          onIncomingCall={(callerName?: string) => { 
+            setIsIncomingCall(true); 
+            setShowStream(true); 
+            if (callerName) setIncomingCallerName(callerName);
+          }} 
         />
       )}
 
       {showStream && data?.user && data?.activeOrder && (
         <LiveStreamModal 
           visible={showStream} 
-          onClose={() => setShowStream(false)} 
+          onClose={() => { setShowStream(false); setIncomingCallerName(null); }} 
           roomId={`EditGo-Order-${data.activeOrder.id}`}
           orderId={data.activeOrder.id}
           currentUser={data.user}
-          recipientName={data.activeOrder.editor?.user?.name || 'Editor'}
+          recipientName={incomingCallerName || data.activeOrder.editor?.user?.name || 'Editor'}
           isIncoming={isIncomingCall}
         />
       )}

@@ -7,7 +7,7 @@ import { Send, ChevronLeft, Phone, MoreVertical, MessageSquare } from 'lucide-re
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import io from 'socket.io-client';
-import { authService, BASE_URL } from '../../src/services/api';
+import { authService, customerService, BASE_URL } from '../../src/services/api';
 import LiveStreamModal from '../../src/components/LiveStreamModal';
 
 const SOCKET_URL = BASE_URL.replace('/api', '');
@@ -15,6 +15,11 @@ const SOCKET_URL = BASE_URL.replace('/api', '');
 export default function ChatScreen() {
   const router = useRouter();
   const { orderId, editorName } = useLocalSearchParams();
+  
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(orderId as string || null);
+  const [activeEditorName, setActiveEditorName] = useState<string | null>(editorName as string || null);
+  const [incomingCallerName, setIncomingCallerName] = useState<string | null>(null);
+
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -30,8 +35,29 @@ export default function ChatScreen() {
       try {
         const user = await authService.getMe();
         setCurrentUser(user);
+        
+        let finalOrderId = orderId as string;
+        let finalEditorName = editorName as string;
+        
+        if (!finalOrderId) {
+          // Fetch active order
+          const homeData = await customerService.getHomeData();
+          if (homeData?.activeOrder) {
+            finalOrderId = homeData.activeOrder.id;
+            finalEditorName = homeData.activeOrder.editor?.user?.name || 'Editor';
+            setActiveOrderId(finalOrderId);
+            setActiveEditorName(finalEditorName);
+          } else {
+            setLoading(false);
+            return;
+          }
+        } else {
+          setActiveOrderId(finalOrderId);
+          setActiveEditorName(finalEditorName);
+        }
+
         socketRef.current = io(SOCKET_URL);
-        socketRef.current.emit('join_order', { orderId, role: 'Customer' });
+        socketRef.current.emit('join_order', { orderId: finalOrderId, role: 'Customer' });
         
         socketRef.current.on('user_joined', (data: any) => {
           setEditorOnline(true);
@@ -47,6 +73,9 @@ export default function ChatScreen() {
           if (data.message === '__CALL_RINGING__') {
             setIsIncomingCall(true);
             setIsCalling(true);
+            if (data.senderName) {
+              setIncomingCallerName(data.senderName);
+            }
             return;
           }
           setMessages(prev => [...prev, {
@@ -67,8 +96,8 @@ export default function ChatScreen() {
   }, [orderId]);
 
   const handleSend = () => {
-    if (!message.trim() || !socketRef.current) return;
-    const msgData = { orderId, message, senderId: currentUser.id };
+    if (!message.trim() || !socketRef.current || !activeOrderId) return;
+    const msgData = { orderId: activeOrderId, message, senderId: currentUser.id };
     socketRef.current.emit('send_message', msgData);
     setMessages(prev => [...prev, {
       id: Date.now().toString(),
@@ -85,7 +114,26 @@ export default function ChatScreen() {
     </View>
   );
 
-  const editorInitial = ((editorName as string) || 'E')[0].toUpperCase();
+  if (!activeOrderId) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC', padding: 20 }}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+        <MessageSquare size={64} color="#7C3AED" style={{ marginBottom: 20 }} />
+        <Text style={{ fontSize: 20, fontWeight: '800', color: '#1E293B', textAlign: 'center', marginBottom: 10 }}>No Active Chats</Text>
+        <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20, marginBottom: 24 }}>
+          You don't have any active project chats right now. Once you place an order and get matched with an editor, you can chat and make calls here!
+        </Text>
+        <TouchableOpacity
+          style={{ backgroundColor: '#7C3AED', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 16, elevation: 2 }}
+          onPress={() => router.push('/(customer)/rapid-studio')}
+        >
+          <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 15 }}>Start a Project ✨</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const editorInitial = ((activeEditorName as string) || 'E')[0].toUpperCase();
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
@@ -104,7 +152,7 @@ export default function ChatScreen() {
               <Text style={styles.editorAvatarText}>{editorInitial}</Text>
             </View>
             <View>
-              <Text style={styles.editorName}>{editorName || 'Expert Editor'}</Text>
+              <Text style={styles.editorName}>{activeEditorName || 'Expert Editor'}</Text>
               <View style={styles.statusRow}>
                 <View style={[styles.onlineDot, { backgroundColor: editorOnline ? '#4ADE80' : '#94A3B8' }]} />
                 <Text style={styles.statusText}>{editorOnline ? 'Online' : 'Offline'}</Text>
@@ -122,11 +170,11 @@ export default function ChatScreen() {
       {isCalling && currentUser && (
         <LiveStreamModal 
           visible={isCalling} 
-          onClose={() => setIsCalling(false)} 
-          roomId={`EditGo-Order-${orderId}`}
-          orderId={orderId as string}
+          onClose={() => { setIsCalling(false); setIncomingCallerName(null); }} 
+          roomId={`EditGo-Order-${activeOrderId}`}
+          orderId={activeOrderId}
           currentUser={currentUser}
-          recipientName={editorName as string || 'Editor'}
+          recipientName={incomingCallerName || activeEditorName || 'Editor'}
           isIncoming={isIncomingCall}
         />
       )}

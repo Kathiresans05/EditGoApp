@@ -36,6 +36,7 @@ export default function TrackingScreen() {
   const [hasUnread, setHasUnread] = useState(false);
   const [showStream, setShowStream] = useState(false);
   const [isIncomingCall, setIsIncomingCall] = useState(false);
+  const [incomingCallerName, setIncomingCallerName] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [showReview, setShowReview] = useState(false);
   const [rating, setRating] = useState(5);
@@ -559,9 +560,23 @@ export default function TrackingScreen() {
         </View>
       </Modal>
 
-      {/* Chat Modal */}
       {currentUser && (
-        <ChatModal visible={showChat} onClose={() => setShowChat(false)} orderId={id} currentUser={currentUser} recipientName={order?.editor?.user?.name} onNewMessage={() => setHasUnread(true)} recipientPhone={order?.editor?.user?.phone} onCallPress={() => { setShowChat(false); setIsIncomingCall(false); setShowStream(true); }} onIncomingCall={() => { setShowChat(false); setIsIncomingCall(true); setShowStream(true); }} />
+        <ChatModal 
+          visible={showChat} 
+          onClose={() => setShowChat(false)} 
+          orderId={id} 
+          currentUser={currentUser} 
+          recipientName={order?.editor?.user?.name} 
+          onNewMessage={() => setHasUnread(true)} 
+          recipientPhone={order?.editor?.user?.phone} 
+          onCallPress={() => { setShowChat(false); setIsIncomingCall(false); setShowStream(true); }} 
+          onIncomingCall={(callerName?: string) => { 
+            setShowChat(false); 
+            setIsIncomingCall(true); 
+            setShowStream(true); 
+            if (callerName) setIncomingCallerName(callerName);
+          }} 
+        />
       )}
 
       {/* Review Modal */}
@@ -637,11 +652,11 @@ export default function TrackingScreen() {
       {showStream && currentUser && order && (
         <LiveStreamModal 
           visible={showStream} 
-          onClose={() => setShowStream(false)} 
+          onClose={() => { setShowStream(false); setIncomingCallerName(null); }} 
           roomId={`EditGo-Order-${order.id}`}
           orderId={id as string}
           currentUser={currentUser}
-          recipientName={order?.editor?.user?.name}
+          recipientName={incomingCallerName || order?.editor?.user?.name}
           isIncoming={isIncomingCall}
         />
       )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Modal, StyleSheet, TouchableOpacity, SafeAreaView, Platform, Text, TextInput, FlatList, KeyboardAvoidingView, Animated, PermissionsAndroid } from 'react-native';
+import { View, Modal, StyleSheet, TouchableOpacity, SafeAreaView, Platform, Text, TextInput, FlatList, KeyboardAvoidingView, Animated, PermissionsAndroid, Alert } from 'react-native';
 import { X, Send, Mic, MicOff, Video, VideoOff, PhoneOff, Volume2, User } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -89,10 +89,12 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
             PermissionsAndroid.PERMISSIONS.CAMERA,
           ]);
           if (
-            granted['android.permission.RECORD_AUDIO'] !== PermissionsAndroid.RESULTS.GRANTED ||
-            granted['android.permission.CAMERA'] !== PermissionsAndroid.RESULTS.GRANTED
+            granted['android.permission.RECORD_AUDIO'] !== PermissionsAndroid.RESULTS.GRANTED
           ) {
-            console.warn("Permissions not granted");
+            Alert.alert(
+              'Permission Required',
+              'Microphone permission is required to make calls. Please enable it in Settings.'
+            );
           }
         } catch (err) {
           console.warn(err);
@@ -228,7 +230,12 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
       socketRef.current.on('connect', () => {
         socketRef.current.emit('join_order', orderId);
         if (!isIncoming) {
-          socketRef.current.emit('send_message', { orderId, message: '__CALL_RINGING__', senderId: currentUser.id });
+          socketRef.current.emit('send_message', { 
+            orderId, 
+            message: '__CALL_RINGING__', 
+            senderId: currentUser.id,
+            senderName: currentUser.name || 'Client'
+          });
         }
       });
       
@@ -385,7 +392,7 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
             
             {/* Hidden RTC View for remote audio playback */}
             {remoteStream && (
-              <RTCView streamURL={remoteStream.toURL()} style={{ width: 0, height: 0 }} />
+              <RTCView streamURL={remoteStream.toURL()} style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }} />
             )}
 
             {/* Header */}
