@@ -103,25 +103,20 @@ export default function RequestsScreen() {
     const current = item.progress || 0;
     let next = current;
     
-    if (current < 40) next = 40;
-    else if (current === 40) {
-      if ((item.previews || []).length < 1) {
-        Alert.alert('Preview Required', 'Please upload a preview draft to continue.');
-        return;
-      }
+    if (current < 80) {
       next = 80;
     } else if (current === 80) {
-      if ((item.previews || []).length < 2) {
-        Alert.alert('Preview Required', 'Please upload a second preview draft to continue.');
-        return;
-      }
-      next = 90;
-    } else if (current === 90) {
       setShowStream(true);
       return;
+    } else if (current === 95) {
+      if ((item.previews || []).length < 1) {
+        Alert.alert('Demo Preview Required', 'Please upload a demo preview video to continue.');
+        return;
+      }
+      next = 99;
     } else if (current === 99) {
       if (!item.finalUrl) {
-        Alert.alert('Final Output Required', 'Please upload the final delivery video using the upload button above to complete the project.');
+        Alert.alert('Final Output Required', 'Please upload the final project video to complete the project.');
         return;
       }
       next = 100;
@@ -129,7 +124,7 @@ export default function RequestsScreen() {
       next = 100;
     }
 
-    if (current !== 90) {
+    if (current !== 80) {
       await updateProgressValue(item, next);
     }
   };
@@ -137,13 +132,13 @@ export default function RequestsScreen() {
   const handleStreamClose = () => {
     setShowStream(false);
     setIncomingCallerName(null);
-    if (selectedJob && selectedJob.progress === 90) {
+    if (selectedJob && selectedJob.progress === 80) {
       Alert.alert(
         'Live Stream Ended',
         'Did you complete the live stream session with the customer?',
         [
           { text: 'Not Yet', style: 'cancel' },
-          { text: 'Yes, Completed', onPress: () => updateProgressValue(selectedJob, 99) }
+          { text: 'Yes, Completed', onPress: () => updateProgressValue(selectedJob, 95) }
         ]
       );
     }
@@ -492,12 +487,12 @@ export default function RequestsScreen() {
                   </TouchableOpacity>
                 )}
 
-                {/* Draft Previews */}
+                {/* Demo Previews */}
                 <View style={s.secRow}>
-                  <Text style={s.secLabel}>DRAFTS ({(selectedJob.previews||[]).length}/3)</Text>
-                  {(selectedJob.previews||[]).length<3 && selectedJob.status!=='COMPLETED' && (
+                  <Text style={s.secLabel}>DEMO PREVIEWS ({(selectedJob.previews||[]).length})</Text>
+                  {selectedJob.status!=='COMPLETED' && (
                     <TouchableOpacity onPress={handleSendPreview} disabled={processing===selectedJob.id}>
-                      {processing===selectedJob.id ? <ActivityIndicator size="small" color="#4F46E5" /> : <Text style={s.addLink}>+ Upload Draft</Text>}
+                      {processing===selectedJob.id ? <ActivityIndicator size="small" color="#4F46E5" /> : <Text style={s.addLink}>+ Upload Demo Preview</Text>}
                     </TouchableOpacity>
                   )}
                 </View>
@@ -550,10 +545,9 @@ export default function RequestsScreen() {
                       {processing===selectedJob.id
                         ? <ActivityIndicator color="#FFF" />
                         : <Text style={s.incrementText}>
-                              {selectedJob.progress < 40 ? 'UPDATE TO 40%' : 
-                             selectedJob.progress === 40 ? 'UPDATE TO 80%' : 
-                             selectedJob.progress === 80 ? 'UPDATE TO 90%' : 
-                             selectedJob.progress === 90 ? 'START LIVE STREAM' : 
+                            {selectedJob.progress < 80 ? 'UPDATE TO 80%' : 
+                             selectedJob.progress === 80 ? 'START LIVE STREAM' : 
+                             selectedJob.progress === 95 ? 'UPDATE TO 99%' : 
                              selectedJob.progress === 99 ? 'MARK 100% COMPLETED' : 'INCREMENT PROGRESS'}
                           </Text>
                       }

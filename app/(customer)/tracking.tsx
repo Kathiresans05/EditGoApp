@@ -376,7 +376,7 @@ export default function TrackingScreen() {
           )}
 
           {/* Interactive Live Stream Action */}
-          {order.progress >= 90 && order.progress < 100 && (
+          {order.progress === 80 && (
             <Animated.View entering={FadeInUp.delay(180)} style={styles.liveStreamCard}>
               <View style={styles.liveStreamInfo}>
                 <View style={styles.liveBadge}>
@@ -412,29 +412,29 @@ export default function TrackingScreen() {
               title="Color Grading & VFX" 
               subtitle="Editor is actively working on the timeline" 
               time="Live" 
-              done={order.progress >= 40} 
-              active={order.progress >= 10 && order.progress < 40} 
-            />
-            <TimelineRow 
-              title="Rendering Drafts" 
-              subtitle="Exporting previews for your review" 
-              time="Live" 
               done={order.progress >= 80} 
-              active={order.progress >= 40 && order.progress < 80} 
+              active={order.progress >= 10 && order.progress < 80} 
             />
             <TimelineRow 
               title="Interactive Live Stream" 
               subtitle="Real-time revision session" 
               time="Live" 
-              done={order.progress >= 90} 
-              active={order.progress >= 80 && order.progress < 90} 
+              done={order.progress >= 95} 
+              active={order.progress === 80} 
+            />
+            <TimelineRow 
+              title="Demo Preview & Feedback" 
+              subtitle="Review uploaded demo and request modifications" 
+              time="Pending" 
+              done={order.progress >= 99} 
+              active={order.progress === 95} 
             />
             <TimelineRow 
               title="Uploading Final HD Video" 
               subtitle="High-res export being processed to cloud" 
               time="Pending" 
               done={order.progress >= 100} 
-              active={order.progress >= 90 && order.progress < 100} 
+              active={order.progress === 99} 
             />
             <TimelineRow 
               title="Delivered" 
