@@ -23,6 +23,10 @@ app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Trust Render.com reverse proxy so req.protocol returns 'https'
+app.set('trust proxy', 1);
+
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Error Logging Middleware

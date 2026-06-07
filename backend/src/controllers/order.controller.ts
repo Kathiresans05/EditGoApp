@@ -56,6 +56,23 @@ export const createOrder = async (req: AuthRequest, res: Response) => {
         `A new ${category} project was just posted for ₹${price}. Claim it now!`,
         { orderId: order.id }
       );
+
+      // Real-time socket notification to all online editors
+      const io = req.app.get('io');
+      if (io) {
+        io.to('editors_online').emit('new_order_available', {
+          order: {
+            id: order.id,
+            title: order.title,
+            category: order.category,
+            price: order.price,
+            initialETAMins: order.initialETAMins,
+            deliverySpeed: order.deliverySpeed,
+            createdAt: order.createdAt,
+          }
+        });
+        console.log('[Socket] Emitted new_order_available to online editors');
+      }
     }
 
     res.status(201).json({ success: true, order });
@@ -83,6 +100,53 @@ export const getMyOrders = async (req: AuthRequest, res: Response) => {
     res.json({ success: true, orders });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to fetch orders' });
+  }
+};
+
+export const getMyCustomerOrders = async (req: AuthRequest, res: Response) => {
+  try {
+    // Only return orders where this user is the CUSTOMER (not editor)
+    const orders = await prisma.order.findMany({
+      where: {
+        customerId: req.user.id
+      },
+      include: {
+        customer: { select: { name: true, avatar: true } },
+        editor: { include: { user: { select: { name: true, avatar: true } } } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ success: true, orders });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch customer orders' });
+  }
+};
+
+export const getMyEditorOrders = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user.id;
+    
+    // Find the editor profile for this user
+    const editor = await prisma.editor.findUnique({ where: { userId } });
+    
+    if (!editor) {
+      return res.json({ success: true, orders: [] });
+    }
+
+    // Only return orders where this user is the EDITOR (not customer)
+    const orders = await prisma.order.findMany({
+      where: {
+        editorId: editor.id
+      },
+      include: {
+        customer: { select: { name: true, avatar: true } },
+        editor: { include: { user: { select: { name: true, avatar: true } } } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ success: true, orders });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch editor orders' });
   }
 };
 
@@ -138,9 +202,11 @@ export const uploadRawVideo = [
       let isLocalFallback = false;
       
       if (!cloudinaryUrl || cloudinaryUrl.includes('test-videos') || cloudinaryUrl.includes('w3schools') || cloudinaryUrl.includes('mixkit')) {
-        const protocol = req.protocol;
+        // Use x-forwarded-proto because Render.com (reverse proxy) sends http in req.protocol
+        // but the actual public URL is always https
+        const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
         const host = req.get('host');
-        cloudinaryUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+        cloudinaryUrl = `${protocol === 'http' && host && !host.includes('localhost') ? 'https' : protocol}://${host}/uploads/${req.file.filename}`;
         isLocalFallback = true;
       }
 
@@ -209,9 +275,10 @@ export const uploadPreviewVideo = [
       let isLocalFallback = false;
       
       if (!cloudinaryUrl || cloudinaryUrl.includes('test-videos') || cloudinaryUrl.includes('w3schools') || cloudinaryUrl.includes('mixkit')) {
-        const protocol = req.protocol;
+        // Use x-forwarded-proto because Render.com (reverse proxy) sends http in req.protocol
+        const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
         const host = req.get('host');
-        cloudinaryUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+        cloudinaryUrl = `${protocol === 'http' && host && !host.includes('localhost') ? 'https' : protocol}://${host}/uploads/${req.file.filename}`;
         isLocalFallback = true;
       }
 
@@ -246,9 +313,10 @@ export const uploadFinalVideo = [
       let isLocalFallback = false;
       
       if (!cloudinaryUrl || cloudinaryUrl.includes('test-videos') || cloudinaryUrl.includes('w3schools') || cloudinaryUrl.includes('mixkit')) {
-        const protocol = req.protocol;
+        // Use x-forwarded-proto because Render.com (reverse proxy) sends http in req.protocol
+        const protocol = req.get('x-forwarded-proto') || req.protocol || 'https';
         const host = req.get('host');
-        cloudinaryUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+        cloudinaryUrl = `${protocol === 'http' && host && !host.includes('localhost') ? 'https' : protocol}://${host}/uploads/${req.file.filename}`;
         isLocalFallback = true;
       }
 
@@ -361,6 +429,15 @@ export const claimOrder = async (req: AuthRequest, res: Response) => {
       editor = await prisma.editor.create({ data: { userId } });
     }
 
+    // Race condition check: verify order is still available before claiming
+    const existingOrder = await prisma.order.findUnique({ where: { id: id as string } });
+    if (!existingOrder) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+    if (existingOrder.status !== 'SEARCHING' || existingOrder.editorId !== null) {
+      return res.status(409).json({ success: false, message: 'This project has already been claimed by another editor.' });
+    }
+
     const order = await prisma.order.update({
       where: { id: id as string },
       data: { 
@@ -429,10 +506,14 @@ async function updateEditorSuccessRate(editorId: string) {
   try {
     const completed = await prisma.order.count({ where: { editorId, status: 'COMPLETED', isLate: false } });
     const late = await prisma.order.count({ where: { editorId, status: 'COMPLETED', isLate: true } });
-    const cancelled = await prisma.order.count({ where: { editorId, status: 'CANCELLED' } });
     
-    // Total orders handled (completed on time + completed late + cancelled)
-    const total = completed + late + cancelled;
+    // Since cancelled orders are reset to SEARCHING (editorId removed),
+    // we use violationCount on the editor to track cancellations
+    const editor = await prisma.editor.findUnique({ where: { id: editorId } });
+    const cancelCount = editor?.violationCount || 0;
+    
+    // Total orders handled (completed on time + completed late + cancel count)
+    const total = completed + late + cancelCount;
 
     const successRate = total === 0 ? 100 : (completed / total) * 100;
 
@@ -448,20 +529,70 @@ async function updateEditorSuccessRate(editorId: string) {
 export const cancelOrder = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = req.user.id;
     
     const order = await prisma.order.findUnique({ where: { id: id as string } });
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
     
+    // Store the old editorId before resetting (for success rate tracking)
+    const previousEditorId = order.editorId;
+    
+    // Reset the order back to SEARCHING so other editors can pick it up
     const updatedOrder = await prisma.order.update({
       where: { id: id as string },
-      data: { status: 'CANCELLED' }
+      data: { 
+        status: 'SEARCHING',
+        editorId: null,
+        progress: 0,
+        acceptedAt: null,
+        privacyAgreementSigned: false,
+      }
     });
 
-    if (updatedOrder.editorId) {
-      await updateEditorSuccessRate(updatedOrder.editorId);
+    // Penalize the editor who cancelled (affects their success rate)
+    if (previousEditorId) {
+      // Increment violationCount to permanently track this cancellation
+      await prisma.editor.update({
+        where: { id: previousEditorId },
+        data: { violationCount: { increment: 1 } }
+      });
+      await updateEditorSuccessRate(previousEditorId);
     }
 
-    res.json({ success: true, message: 'Order cancelled successfully', order: updatedOrder });
+    // Notify all editors that a project is back in the marketplace
+    await notifyAllEditors(
+      'Project Available Again! 🔄',
+      `A ${order.category} project for ₹${order.price} is back in the marketplace. Grab it now!`,
+      { orderId: order.id }
+    );
+
+    // Real-time socket notification to all online editors
+    const io = req.app.get('io');
+    if (io) {
+      io.to('editors_online').emit('new_order_available', {
+        order: {
+          id: order.id,
+          title: order.title,
+          category: order.category,
+          price: order.price,
+          initialETAMins: order.initialETAMins,
+          deliverySpeed: order.deliverySpeed,
+          createdAt: order.createdAt,
+        }
+      });
+    }
+
+    // Also notify the customer that their order is being re-assigned
+    if (order.customerId) {
+      await sendPushNotification(
+        order.customerId,
+        'Editor Changed 🔄',
+        'Your project is being reassigned to a new editor. We\'ll notify you when someone picks it up!',
+        { orderId: order.id }
+      );
+    }
+
+    res.json({ success: true, message: 'Order released back to marketplace', order: updatedOrder });
   } catch (error) {
     console.error('Error cancelling order:', error);
     res.status(500).json({ success: false, message: 'Failed to cancel order' });
