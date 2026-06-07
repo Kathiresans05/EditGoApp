@@ -10,8 +10,9 @@ import {
 } from 'lucide-react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
-import api, { authService, orderService, editorService } from '../../src/services/api';
+import api, { authService, orderService, editorService, BASE_URL } from '../../src/services/api';
 import { Audio, Video, ResizeMode } from 'expo-av';
+import io from 'socket.io-client';
 import * as SecureStore from 'expo-secure-store';
 import ChatModal from '../../src/components/ChatModal';
 import LiveStreamModal from '../../src/components/LiveStreamModal';
@@ -48,14 +49,62 @@ export default function EditorDashboard() {
   const soundRef = React.useRef<any>(null);
   const ignoredRequestsRef = React.useRef<string[]>([]);
 
+  const socketRef = React.useRef<any>(null);
+
   useEffect(() => {
     fetchDashboardData();
     const interval = setInterval(() => fetchDashboardData(true), 5000);
     return () => {
       clearInterval(interval);
       if (soundRef.current) soundRef.current.unloadAsync();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (user?.editorProfile?.id) {
+      const socketUrl = BASE_URL.replace('/api', '');
+      socketRef.current = io(socketUrl);
+
+      socketRef.current.on('connect', () => {
+        if (isOnline) {
+          socketRef.current.emit('editor_online', { editorId: user.editorProfile.id });
+        }
+      });
+
+      socketRef.current.on('new_order_available', (data: any) => {
+        console.log('[Dashboard] Real-time new order received:', data);
+        if (!globalIgnoredRequests.has(data.order.id)) {
+           setRequests((prev) => {
+             // Avoid duplicates
+             if (!prev.find(r => r.id === data.order.id)) {
+               return [data.order, ...prev];
+             }
+             return prev;
+           });
+        }
+      });
+
+      return () => {
+        if (socketRef.current) {
+          socketRef.current.disconnect();
+          socketRef.current = null;
+        }
+      };
+    }
+  }, [user?.editorProfile?.id]);
+
+  useEffect(() => {
+    if (socketRef.current && user?.editorProfile?.id) {
+      if (isOnline) {
+        socketRef.current.emit('editor_online', { editorId: user.editorProfile.id });
+      } else {
+        socketRef.current.emit('editor_offline', { editorId: user.editorProfile.id });
+      }
+    }
+  }, [isOnline, user?.editorProfile?.id]);
 
   useEffect(() => {
     if (requests.length > 0 && isOnline) playSound();
@@ -92,15 +141,15 @@ export default function EditorDashboard() {
   const fetchDashboardData = async (isSilent = false) => {
     try {
       if (!isSilent) setLoading(true);
-      const [profile, ordersData, availableData] = await Promise.all([
+      const [profile, editorOrdersData, availableData] = await Promise.all([
         authService.getMe(),
-        orderService.getMyOrders(),
+        orderService.getMyEditorOrders(),
         editorService.getAvailableOrders()
       ]);
       setUser(profile);
       setIsOnline(profile.editorProfile?.isOnline || false);
-      const allOrders = ordersData.orders || [];
-      setActiveJobs(allOrders.filter((o: any) => o.status !== 'SEARCHING' && o.status !== 'COMPLETED'));
+      const editorOrders = editorOrdersData.orders || [];
+      setActiveJobs(editorOrders.filter((o: any) => o.status !== 'COMPLETED' && o.status !== 'CANCELLED'));
 
       // Fetch real portfolio items
       try {

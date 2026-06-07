@@ -21,7 +21,7 @@ export default function EarningsScreen() {
       setLoading(true);
       const [profile, ordersData] = await Promise.all([
         authService.getMe(),
-        orderService.getMyOrders()
+        orderService.getMyEditorOrders()
       ]);
       setUser(profile);
       setHistory(ordersData.orders?.filter((o: any) => o.status === 'COMPLETED') || []);

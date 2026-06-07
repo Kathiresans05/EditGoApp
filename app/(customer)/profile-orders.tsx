@@ -29,7 +29,7 @@ export default function ProfileOrdersScreen() {
 
   const fetchOrders = async () => {
     try {
-      const data = await orderService.getMyOrders();
+      const data = await orderService.getMyCustomerOrders();
       setOrders(data.orders || []);
     } catch (error) {
       console.error('[History] Fetch Error:', error);

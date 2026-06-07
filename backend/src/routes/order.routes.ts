@@ -1,11 +1,13 @@
 import { Router } from 'express';
-import { createOrder, getOrderById, updateOrderStatus, getMyOrders, getAvailableOrders, claimOrder, uploadRawVideo, getSignedVideo, uploadPreviewVideo, uploadFinalVideo, submitReview, cancelOrder } from '../controllers/order.controller';
+import { createOrder, getOrderById, updateOrderStatus, getMyOrders, getMyCustomerOrders, getMyEditorOrders, getAvailableOrders, claimOrder, uploadRawVideo, getSignedVideo, uploadPreviewVideo, uploadFinalVideo, submitReview, cancelOrder } from '../controllers/order.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
 const router = Router();
 
 router.post('/', authMiddleware, createOrder);
 router.get('/my', authMiddleware, getMyOrders);
+router.get('/my-customer', authMiddleware, getMyCustomerOrders);
+router.get('/my-editor', authMiddleware, getMyEditorOrders);
 router.get('/available', authMiddleware, getAvailableOrders);
 router.get('/:id', authMiddleware, getOrderById);
 router.patch('/:id/status', authMiddleware, updateOrderStatus);

@@ -202,18 +202,18 @@ export default function RequestsScreen() {
 
   const handleCancelOrder = () => {
     Alert.alert(
-      'Cancel Order',
-      'Are you sure you want to cancel this order? This will negatively affect your Success Rate!',
+      'Release Order',
+      'Are you sure? This order will go back to the marketplace for other editors. Your Success Rate will be affected!',
       [
         { text: 'Keep Editing', style: 'cancel' },
         { 
-          text: 'Cancel Order', 
+          text: 'Release Order', 
           style: 'destructive',
           onPress: async () => {
             try {
               setProcessing(selectedJob.id);
               await editorService.cancelOrder(selectedJob.id);
-              Alert.alert('Cancelled', 'The order has been cancelled.');
+              Alert.alert('Released', 'The order is back in the marketplace. Other editors can now claim it.');
               setSelectedJob(null);
               fetchData();
             } catch (err: any) {
@@ -324,12 +324,18 @@ export default function RequestsScreen() {
                         <CheckCircle2 size={16} color="#FFF" />
                         <Text style={s.acceptText}>Start Project</Text>
                       </TouchableOpacity>
-                    ) : (
-                      <View style={[s.statusBadge, item.status==='COMPLETED'?s.badgeDone:s.badgeLive]}>
-                        <Text style={[s.statusBadgeText, item.status==='COMPLETED'?{color:'#2E7D32'}:{color:'#4F46E5'}]}>
-                          {item.status==='COMPLETED'?'✅ Delivered':'Open Workspace →'}
+                    ) : item.status==='COMPLETED' ? (
+                      <View style={[s.statusBadge, s.badgeDone]}>
+                        <Text style={[s.statusBadgeText, {color:'#2E7D32'}]}>
+                          ✅ Delivered
                         </Text>
                       </View>
+                    ) : (
+                      <TouchableOpacity style={[s.statusBadge, s.badgeLive]} onPress={() => setSelectedJob(item)}>
+                        <Text style={[s.statusBadgeText, {color:'#4F46E5'}]}>
+                          Open Workspace →
+                        </Text>
+                      </TouchableOpacity>
                     )}
                   </>
                 ) : (
@@ -558,7 +564,7 @@ export default function RequestsScreen() {
                       onPress={handleCancelOrder} 
                       disabled={processing===selectedJob.id}
                     >
-                      <Text style={{ color: '#DC2626', fontWeight: '700', fontSize: 13 }}>Cancel Order (Impacts Success Rate)</Text>
+                      <Text style={{ color: '#DC2626', fontWeight: '700', fontSize: 13 }}>Release Order (Impacts Success Rate)</Text>
                     </TouchableOpacity>
                   </View>
                 )}

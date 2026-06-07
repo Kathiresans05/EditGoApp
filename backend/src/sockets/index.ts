@@ -4,6 +4,20 @@ export const setupSockets = (io: Server) => {
   io.on('connection', (socket: Socket) => {
     console.log('User connected:', socket.id);
 
+    // Editor joins a room to receive new order notifications in real-time
+    socket.on('editor_online', (data: { editorId: string }) => {
+      socket.join('editors_online');
+      socket.join(`editor_${data.editorId}`);
+      console.log(`Editor ${data.editorId} joined online room`);
+    });
+
+    // Editor goes offline — leave the room
+    socket.on('editor_offline', (data: { editorId: string }) => {
+      socket.leave('editors_online');
+      socket.leave(`editor_${data.editorId}`);
+      console.log(`Editor ${data.editorId} left online room`);
+    });
+
     socket.on('join_order', (data: any) => {
       const orderId = typeof data === 'string' || typeof data === 'number' ? String(data) : String(data.orderId);
       const role = typeof data === 'string' || typeof data === 'number' ? 'User' : data.role;

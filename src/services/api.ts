@@ -143,6 +143,14 @@ export const orderService = {
     const response = await api.get('/orders/my');
     return response.data;
   },
+  getMyEditorOrders: async () => {
+    const response = await api.get('/orders/my-editor');
+    return response.data;
+  },
+  getMyCustomerOrders: async () => {
+    const response = await api.get('/orders/my-customer');
+    return response.data;
+  },
   getOrderById: async (id: string) => {
     const response = await api.get(`/orders/${id}`);
     return response.data;
@@ -178,7 +186,7 @@ export const editorService = {
     return response.data;
   },
   getAssignedOrders: async () => {
-    const response = await api.get('/orders/my');
+    const response = await api.get('/orders/my-editor');
     return response.data;
   },
   updateOrderStatus: async (orderId: string, status: string, progress: number) => {
