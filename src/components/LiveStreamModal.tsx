@@ -106,32 +106,9 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
         let s: any = null;
         
         if (isEditor) {
-          console.log('[LiveStream] User is EDITOR. Initializing microphone...');
-          const audioStream = await mediaDevices.getUserMedia({ audio: true, video: false });
-          s = audioStream;
-          
-          try {
-            console.log('[LiveStream] Attempting to capture screen share...');
-            const videoStream = await mediaDevices.getDisplayMedia();
-            if (videoStream) {
-              videoStream.getVideoTracks().forEach(track => {
-                s.addTrack(track);
-              });
-              console.log('[LiveStream] Screen track combined successfully!');
-            }
-          } catch (e) {
-            console.log('[LiveStream] Screen share failed, trying camera fallback:', e);
-            try {
-              const cameraStream = await mediaDevices.getUserMedia({ audio: false, video: true });
-              if (cameraStream) {
-                cameraStream.getVideoTracks().forEach(track => {
-                  s.addTrack(track);
-                });
-              }
-            } catch (err2) {
-              console.log('[LiveStream] Camera capture fallback failed:', err2);
-            }
-          }
+          // During ringing phase: audio only (screen share starts only after call is connected)
+          console.log('[LiveStream] User is EDITOR. Initializing audio-only for ringing...');
+          s = await mediaDevices.getUserMedia({ audio: true, video: false });
         } else {
           console.log('[LiveStream] User is CUSTOMER. Standard audio-only capture...');
           s = await mediaDevices.getUserMedia({
@@ -278,6 +255,19 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
         if (data.message === '__CALL_ACCEPTED__') {
           setCallStatus('connected');
           setCallDuration(0);
+          // Editor: start screen share NOW that call is connected
+          if (currentUser?.role === 'EDITOR') {
+            mediaDevices.getDisplayMedia().then((videoStream: any) => {
+              if (videoStream && localStreamRef.current) {
+                videoStream.getVideoTracks().forEach((track: any) => {
+                  localStreamRef.current!.addTrack(track);
+                });
+                setLocalStream({ ...localStreamRef.current } as any);
+              }
+            }).catch((e: any) => {
+              console.log('[LiveStream] Screen share after connect failed:', e);
+            });
+          }
           // Only the caller (initiator) should start WebRTC offer
           if (!isIncoming) {
             startWebRTC();
