@@ -51,6 +51,7 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
   const flatListRef = useRef<any>(null);
   const timerRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const callTimeoutRef = useRef<any>(null); // auto-end if no answer
 
   const localStreamRef = useRef<MediaStream | null>(null);
 
@@ -241,18 +242,43 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
       socketRef.current.on('connect', () => {
         socketRef.current.emit('join_order', orderId);
         if (!isIncoming) {
+          // Emit ringing immediately
           socketRef.current.emit('send_message', { 
             orderId, 
             message: '__CALL_RINGING__', 
             senderId: currentUser.id,
             senderName: currentUser.name || 'Client'
           });
+          // Re-emit after 2s in case the other side hadn't joined yet
+          setTimeout(() => {
+            if (socketRef.current && callStatus === 'ringing') {
+              socketRef.current.emit('send_message', { 
+                orderId, 
+                message: '__CALL_RINGING__', 
+                senderId: currentUser.id,
+                senderName: currentUser.name || 'Client'
+              });
+            }
+          }, 2000);
+          // Auto-end call after 30s if no answer
+          callTimeoutRef.current = setTimeout(() => {
+            if (socketRef.current) {
+              socketRef.current.emit('send_message', { orderId, message: '__CALL_ENDED__', senderId: currentUser.id });
+            }
+            Alert.alert('No Answer', `${recipientName || 'User'} did not answer.`);
+            handleCleanUpAndClose();
+          }, 30000);
         }
       });
       
       socketRef.current.on('receive_message', (data: any) => {
         // Always process system call signals
         if (data.message === '__CALL_ACCEPTED__') {
+          // Cancel the no-answer timeout
+          if (callTimeoutRef.current) {
+            clearTimeout(callTimeoutRef.current);
+            callTimeoutRef.current = null;
+          }
           setCallStatus('connected');
           setCallDuration(0);
           // Editor: start screen share NOW that call is connected
@@ -339,6 +365,10 @@ export default function LiveStreamModal({ visible, onClose, roomId, orderId, cur
         if (socketRef.current) {
           socketRef.current.disconnect();
           socketRef.current = null;
+        }
+        if (callTimeoutRef.current) {
+          clearTimeout(callTimeoutRef.current);
+          callTimeoutRef.current = null;
         }
       };
     } else {
